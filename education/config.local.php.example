@@ -1,0 +1,35 @@
+<?php
+/**
+ * 【使い方】このファイルを同じフォルダに config.local.php という名前でコピーし、
+ * 実際の値を記入してください。ここに書いた項目だけが config.php の既定値を
+ * 上書きします（書かない項目は config.php の値のまま）。
+ *
+ * config.local.php は Git で追跡されず、education フォルダを上書き配置しても
+ * 消えないので、接続情報や管理者パスワードが毎回リセットされるのを防げます。
+ */
+if (!defined('EDU_APP')) { http_response_code(403); exit('Forbidden'); }
+
+return [
+    // ---- MySQL（保存先）----
+    // レセプトアプリと同じ MySQL なら receipt/config/config.php と同じ値
+    'mysql' => [
+        'host'     => '127.0.0.1',
+        'port'     => '3306',
+        'database' => 'receipt_db',
+        'user'     => 'receipt_user',
+        'pass'     => 'ここにMySQLのパスワード',
+    ],
+
+    // ---- 管理者（承認者）パスワードのハッシュ ----
+    // ブラウザで tools/make_password_hash.php を開くか、
+    //   php tools/make_password_hash.php 新しいパスワード
+    // を実行して表示された文字列（$2y$... で始まる）を貼り付ける
+    'admin_password_hash' => 'ここにハッシュを貼り付け',
+
+    // ---- 選択肢を病院の実態に合わせて変える場合（丸ごと置き換え）----
+    // 'organizers' => [
+    //     '委員会' => ['医療安全管理委員会', '院内感染対策委員会'],
+    //     '本部'   => ['徳洲会本部'],
+    //     '部署'   => ['看護部', '薬剤部'],
+    // ],
+];
