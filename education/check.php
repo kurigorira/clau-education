@@ -18,7 +18,7 @@ $ng   = fn(string $m) => " <span class='ng'>NG</span> " . h($m);
 $warn = fn(string $m) => " <span class='warn'>注意</span> " . h($m);
 
 echo "<!doctype html><html lang='ja'><head><meta charset='utf-8'><title>研修スケジュール 診断</title>";
-echo "<style>body{font-family:sans-serif;line-height:1.7;padding:20px;max-width:760px;margin:auto}";
+echo "<style>body{font-family:\"BIZ UDPGothic\",\"Yu Gothic UI\",\"Yu Gothic\",Meiryo,\"MS PGothic\",sans-serif;background:#fdf0f4;line-height:1.7;padding:20px;max-width:760px;margin:auto}";
 echo ".ok{color:#1b6b35;font-weight:bold}.ng{color:#b53434;font-weight:bold}.warn{color:#7a5b00;font-weight:bold}";
 echo "code{background:#f0f0f0;padding:2px 5px;border-radius:4px}li{margin:6px 0}</style></head><body>";
 echo "<h1>研修スケジュール 動作診断</h1>";

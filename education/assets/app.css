@@ -1,7 +1,11 @@
 /* 院内研修・勉強会スケジュール（既存の院内アプリと同じ視覚言語・このアプリ単体で完結） */
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "Hiragino Kaku Gothic ProN", "Meiryo", system-ui, sans-serif;
-       color: #1f2733; background: #f4f6f9; line-height: 1.6; }
+/* 背景は薄い桃色、文字はゴシック体（電子カルテ端末の Windows に入っているものを優先） */
+body { margin: 0;
+       font-family: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "YuGothic", "Meiryo",
+                    "Hiragino Kaku Gothic ProN", "MS PGothic", sans-serif;
+       font-weight: 500; color: #1f2733; background: #fdf0f4; line-height: 1.6; }
+input, select, textarea, button { font-family: inherit; }
 
 /* ヘッダ */
 .topbar { background: #0d3b66; color: #fff; padding: 12px 20px;
