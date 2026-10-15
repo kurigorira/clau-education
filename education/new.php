@@ -12,22 +12,34 @@ require __DIR__ . '/form.php';
 
 $errors = [];
 $old = edu_form_defaults();
+$fatal = null;
+$candidates = [];
+$copyQ = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 50);
+$copied = null;
 
-// 「この予定を複製して登録」（毎月・毎年の定例研修を手早く登録するため）
-$copyId = (int)($_GET['copy'] ?? 0);
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $copyId > 0) {
-    try {
-        $src = edu_find(edu_mysql($config), $copyId);
+try {
+    $pdo = edu_mysql($config);   // 選択肢（主催・会場など）をDBから読み込む
+} catch (Throwable $e) {
+    $fatal = $e->getMessage();
+}
+
+if ($fatal === null && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    // 「過去の研修から複製」の候補（毎年・毎月の定例研修を手早く登録するため）
+    $candidates = edu_copy_candidates($pdo, $copyQ, 20);
+
+    $copyId = (int)($_GET['copy'] ?? 0);
+    if ($copyId > 0) {
+        $src = edu_find($pdo, $copyId);
         if ($src !== null && in_array($src['status'], ['approved', 'cancelled'], true)) {
             $old = edu_form_from_event($config, $src);
-            $old['date'] = '';
+            // 日付だけ空にする（新しい日程を入れてもらう）
+            $old['date'] = $old['online_from'] = $old['online_to'] = '';
+            $copied = $src;
         }
-    } catch (Throwable $e) {
-        $errors[] = 'データベースに接続できませんでした: ' . $e->getMessage();
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     edu_csrf_check();
     [$old, $data, $errors] = edu_form_read($config, $_POST);
 
@@ -41,8 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         try {
-            $pdo = edu_mysql($config);
-            $id  = edu_create($pdo, $data, password_hash($pass, PASSWORD_DEFAULT));
+            $id = edu_create($pdo, $data, password_hash($pass, PASSWORD_DEFAULT));
             edu_unlock($id);   // 登録直後はそのまま編集できるようにする
             edu_flash_set("登録申請を受け付けました（登録番号 #{$id}）。管理者の承認後に一覧・カレンダーへ掲載されます。"
                         . '後から変更・中止するときは、この登録番号と編集用パスワードを使います。');
@@ -57,8 +68,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 edu_layout_header($config, '予定を登録', 'new');
 ?>
 
+<?php if ($fatal !== null): ?>
+  <?php edu_db_error($fatal); ?>
+<?php else: ?>
+
+<?php if ($_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
+<details class="panel copy-panel" <?= ($copyQ !== '' && $copied === null) ? 'open' : '' ?>>
+  <summary><strong>過去の研修から複製して登録する</strong>
+    <span class="muted">（前回・昨年の研修の内容をそのまま使い、日付だけ入れ直せます）</span></summary>
+  <form method="get" action="new.php" class="filter-form">
+    <div class="form-row">
+      <label>研修名・主催・会場で検索</label>
+      <input type="text" name="q" value="<?= h($copyQ) ?>" placeholder="例: 医療安全 / 感染対策委員会">
+    </div>
+    <button type="submit">検索</button>
+  </form>
+  <?php if (!$candidates): ?>
+    <div class="muted">該当する過去の研修はありません。</div>
+  <?php else: ?>
+    <table class="data compact">
+      <thead><tr><th>日時</th><th>研修名</th><th>主催</th><th></th></tr></thead>
+      <tbody>
+        <?php foreach ($candidates as $c): ?>
+          <tr>
+            <td class="nowrap"><?= h(edu_when_label($c)) ?></td>
+            <td><?= h($c['title']) ?></td>
+            <td><?= h($c['organizer']) ?></td>
+            <td><a class="btn small" href="new.php?copy=<?= (int)$c['id'] ?>">この内容で登録</a></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  <?php endif; ?>
+</details>
+<?php endif; ?>
+
 <div class="panel">
   <h2>研修・勉強会の予定を登録</h2>
+  <?php if ($copied !== null): ?>
+    <div class="warn">「<?= h($copied['title']) ?>」（<?= h(edu_when_label($copied)) ?>）の内容を複製しました。
+      <strong>日付を入力</strong>し、必要なら研修名（第○回など）を直してから申請してください。</div>
+  <?php endif; ?>
   <p class="lead">
     委員会・本部・部署の担当者なら、どなたでも登録できます（ログイン不要）。
     登録後、管理者が内容を確認して承認すると、一覧とカレンダーに掲載されます。
@@ -93,5 +143,7 @@ edu_layout_header($config, '予定を登録', 'new');
     <a href="index.php" class="btn secondary">一覧へ戻る</a>
   </form>
 </div>
+
+<?php endif; ?>
 
 <?php edu_layout_footer($config); ?>

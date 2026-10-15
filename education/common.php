@@ -77,7 +77,12 @@ function edu_csrf_check(): void
 /** 管理者（承認者）としてログイン中か */
 function edu_is_admin(): bool
 {
-    return !empty($_SESSION['edu_admin']);
+    return !empty($_SESSION['edu_admin_id']);
+}
+
+function edu_admin_id(): int
+{
+    return (int)($_SESSION['edu_admin_id'] ?? 0);
 }
 
 /** 管理者の表示名（承認者名として記録する） */
@@ -95,6 +100,38 @@ function edu_can_edit(int $id): bool
 function edu_unlock(int $id): void
 {
     $_SESSION['edu_unlocked'][$id] = true;
+}
+
+/** 管理者アカウントの入力チェック（$pass が null ならパスワードは確認しない） */
+function edu_admin_input_errors(string $loginId, string $name, ?string $pass, ?string $pass2): array
+{
+    $errors = [];
+    if ($loginId !== '' || $pass !== null) {
+        if (!preg_match('/^[A-Za-z0-9_.\-]{2,32}$/', $loginId)) {
+            $errors[] = 'ログインIDは半角英数字（記号は _ . - のみ）2〜32文字で入力してください。';
+        }
+    }
+    if ($name === '' || mb_strlen($name) > 64) {
+        $errors[] = '氏名を64文字以内で入力してください。';
+    }
+    if ($pass !== null) {
+        if (strlen($pass) < 8) {
+            $errors[] = 'パスワードは8文字以上で入力してください。';
+        } elseif ($pass !== $pass2) {
+            $errors[] = 'パスワード（確認）が一致しません。';
+        }
+    }
+    return $errors;
+}
+
+/** 管理者ログインが必要な画面の入口（未ログインなら管理画面へ） */
+function edu_require_admin(): void
+{
+    if (!edu_is_admin()) {
+        edu_flash_set('管理者ログインが必要です。', 'error');
+        header('Location: admin.php');
+        exit;
+    }
 }
 
 /** 接続元IP（ログ用） */
@@ -148,6 +185,61 @@ function edu_datetime_label(?string $dt): string
     return date('Y/n/j H:i', strtotime($dt));
 }
 
+/** 開催形式コード => 表示名 */
+function edu_format_label(string $format): string
+{
+    return $format === 'online' ? 'オンライン視聴' : '会場で開催';
+}
+
+/** オンライン視聴の研修か */
+function edu_is_online(array $e): bool
+{
+    return ($e['format'] ?? 'venue') === 'online';
+}
+
+/**
+ * 日時の表示。
+ *  会場開催   … 2026/12/2(水) 17:30〜18:30
+ *  オンライン … 視聴期間 2026/12/1(火)〜12/25(金)
+ */
+function edu_when_label(array $e): string
+{
+    if (edu_is_online($e)) {
+        $s = strtotime($e['start_at']);
+        $t = strtotime((string)$e['end_at']);
+        $end = date('Y', $s) === date('Y', $t) ? date('n/j', $t) : date('Y/n/j', $t);
+        return '視聴期間 ' . edu_date_label($e['start_at']) . '〜' . $end . '(' . edu_wday($t) . ')';
+    }
+    return edu_date_label($e['start_at']) . ' ' . edu_time_label($e['start_at'], $e['end_at']);
+}
+
+/**
+ * オンライン視聴の進行状況（一覧のバッジ用）。
+ * @return string '' | 'before'（配信前） | 'open'（受付中） | 'closing'（締切7日以内） | 'closed'（終了）
+ */
+function edu_online_state(array $e): string
+{
+    if (!edu_is_online($e)) { return ''; }
+    $today = date('Y-m-d');
+    $from  = date('Y-m-d', strtotime($e['start_at']));
+    $to    = date('Y-m-d', strtotime((string)$e['end_at']));
+    if ($today < $from) { return 'before'; }
+    if ($today > $to)   { return 'closed'; }
+    return (strtotime($to) - strtotime($today)) <= 7 * 86400 ? 'closing' : 'open';
+}
+
+/** オンライン視聴のバッジ（オンライン／配信前・視聴受付中・締切間近・視聴終了） */
+function edu_render_online_badges(array $e): void
+{
+    if (!edu_is_online($e)) { return; }
+    echo '<span class="badge badge-online">オンライン</span>';
+    $state = edu_online_state($e);
+    $label = ['before' => '配信前', 'open' => '視聴受付中', 'closing' => '締切間近', 'closed' => '視聴終了'][$state] ?? '';
+    if ($label !== '') {
+        echo '<span class="badge badge-' . h($state) . '">' . h($label) . '</span>';
+    }
+}
+
 /** 主催の表示（例 委員会：医療安全管理委員会） */
 function edu_organizer_label(array $e): string
 {
@@ -163,7 +255,7 @@ function edu_fiscal_year(int $ts): int
 
 /* ---------------- レイアウト ---------------- */
 
-/** ページ共通ヘッダ（$active: 'list' | 'calendar' | 'new' | 'admin'） */
+/** ページ共通ヘッダ（$active: 'list' | 'calendar' | 'new' | 'admin' | 'masters' | 'accounts'） */
 function edu_layout_header(array $config, string $subtitle, string $active = ''): void
 {
     $title = $config['title'];
@@ -171,8 +263,12 @@ function edu_layout_header(array $config, string $subtitle, string $active = '')
         'list'     => ['index.php', '予定一覧'],
         'calendar' => ['calendar.php', 'カレンダー'],
         'new'      => ['new.php', '予定を登録'],
-        'admin'    => ['admin.php', edu_is_admin() ? '管理（ログイン中）' : '管理'],
+        'admin'    => ['admin.php', edu_is_admin() ? '承認・管理' : '管理'],
     ];
+    if (edu_is_admin()) {
+        $nav['masters']  = ['masters.php', '選択肢の管理'];
+        $nav['accounts'] = ['accounts.php', '管理者アカウント'];
+    }
     ?>
 <!doctype html>
 <html lang="ja">

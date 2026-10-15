@@ -64,12 +64,14 @@ edu_layout_header($config, $event ? $event['title'] : '予定の詳細', 'list')
       <span class="badge <?= h(edu_status_class($event['status'])) ?>"><?= h($statusMap[$event['status']] ?? $event['status']) ?></span>
       <span class="badge cat <?= h(edu_category_class($config, $event['category'])) ?>"><?= h($event['category']) ?></span>
       <?php if ((int)$event['is_mandatory'] === 1): ?><span class="badge badge-must">必須</span><?php endif; ?>
+      <?php edu_render_online_badges($event); ?>
       <?php if ((int)$event['changed_after_approval'] === 1): ?><span class="badge badge-progress">変更あり</span><?php endif; ?>
     </div>
     <dl class="detail">
       <dt>日時</dt>
-      <dd class="big"><?= h(edu_date_label($event['start_at'])) ?>　<?= h(edu_time_label($event['start_at'], $event['end_at'])) ?></dd>
-      <dt>会場</dt><dd><?= h($event['place']) ?></dd>
+      <dd class="big"><?= h(edu_when_label($event)) ?></dd>
+      <dt>開催形式</dt><dd><?= h(edu_format_label($event['format'])) ?></dd>
+      <dt><?= edu_is_online($event) ? '視聴方法' : '会場' ?></dt><dd><?= h($event['place']) ?></dd>
       <dt>主催</dt><dd><?= h(edu_organizer_label($event)) ?></dd>
       <dt>対象</dt><dd><?= h(str_replace(',', '、', $event['targets'])) ?></dd>
       <dt>定員</dt><dd><?= $event['capacity'] !== null ? (int)$event['capacity'] . '名' : '制限なし' ?></dd>

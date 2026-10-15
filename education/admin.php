@@ -1,6 +1,7 @@
 <?php
 /**
- * 管理画面（承認者用）。管理者パスワードでログインして使う。
+ * 管理画面（承認者用）。管理者アカウント（ログインID＋パスワード）でログインして使う。
+ * 管理者が1人もいない間だけ「初回設定」で最初の管理者を作成できる。
  *  - 承認待ちの予定を承認（公開）／差戻し
  *  - 公開後に担当者が変更した予定の確認
  *  - 中止の取り消し・削除・編集用パスワードの再設定
@@ -24,30 +25,51 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string)($_POST['act'] ?? '');
 
     try {
-        if ($act === 'login') {
+        if ($act === 'setup') {
+            // ---- 初回設定：管理者が1人もいない間だけ、最初の管理者を作成できる ----
+            if (edu_admin_count($pdo, false) > 0) {
+                $errors[] = '初回設定はすでに完了しています。管理者アカウントでログインしてください。';
+            } else {
+                $loginId = trim((string)($_POST['login_id'] ?? ''));
+                $name    = trim((string)($_POST['name'] ?? ''));
+                $pass    = (string)($_POST['password'] ?? '');
+                $errors  = edu_admin_input_errors($loginId, $name, $pass, (string)($_POST['password2'] ?? ''));
+                if (!$errors) {
+                    edu_admin_add($pdo, $loginId, $name, $pass);
+                    $a = edu_admin_find_login($pdo, $loginId);
+                    session_regenerate_id(true);
+                    $_SESSION['edu_admin_id']   = (int)$a['id'];
+                    $_SESSION['edu_admin_name'] = $a['name'];
+                    edu_log($pdo, null, 'admin_add', $name, "初回設定で管理者「{$loginId}」を作成");
+                    edu_flash_set('最初の管理者を作成し、ログインしました。ほかの承認者は「管理者アカウント」から追加できます。');
+                    header('Location: admin.php');
+                    exit;
+                }
+            }
+
+        } elseif ($act === 'login') {
             // ---- ログイン（誤りが続くIPは一時ロック） ----
-            $name = trim((string)($_POST['name'] ?? ''));
-            $ip   = edu_client_ip();
-            if ((string)$config['admin_password_hash'] === '') {
-                $errors[] = '管理者パスワードが未設定です。config.local.php の admin_password_hash を設定してください（README参照）。';
-            } elseif (edu_fail_count($pdo, 'login_fail', $ip, (int)$config['lock_minutes']) >= (int)$config['login_max_fail']) {
+            $loginId = trim((string)($_POST['login_id'] ?? ''));
+            $ip      = edu_client_ip();
+            $admin   = $loginId !== '' ? edu_admin_find_login($pdo, $loginId) : null;
+            if (edu_fail_count($pdo, 'login_fail', $ip, (int)$config['lock_minutes']) >= (int)$config['login_max_fail']) {
                 $errors[] = 'パスワードの誤りが続いたため、' . (int)$config['lock_minutes'] . '分間ログインを停止しています。';
-            } elseif ($name === '' || mb_strlen($name) > 64) {
-                $errors[] = '承認者名（64文字以内）を入力してください。承認の記録に使います。';
-            } elseif (password_verify((string)($_POST['password'] ?? ''), (string)$config['admin_password_hash'])) {
+            } elseif ($admin !== null && (int)$admin['active'] === 1
+                      && password_verify((string)($_POST['password'] ?? ''), $admin['pass_hash'])) {
                 session_regenerate_id(true);
-                $_SESSION['edu_admin'] = true;
-                $_SESSION['edu_admin_name'] = $name;
-                edu_log($pdo, null, 'login', $name, '管理者ログイン');
+                $_SESSION['edu_admin_id']   = (int)$admin['id'];
+                $_SESSION['edu_admin_name'] = $admin['name'];
+                $pdo->prepare('UPDATE edu_admins SET last_login_at = NOW() WHERE id = ?')->execute([(int)$admin['id']]);
+                edu_log($pdo, null, 'login', $admin['name'], '管理者ログイン');
                 header('Location: admin.php');
                 exit;
             } else {
-                edu_log($pdo, null, 'login_fail', $name, '管理者パスワード誤り');
-                $errors[] = 'パスワードが違います。';
+                edu_log($pdo, null, 'login_fail', mb_substr($loginId, 0, 64), 'ログインIDまたはパスワード誤り');
+                $errors[] = 'ログインIDまたはパスワードが違います。';
             }
 
         } elseif ($act === 'logout') {
-            unset($_SESSION['edu_admin'], $_SESSION['edu_admin_name']);
+            unset($_SESSION['edu_admin_id'], $_SESSION['edu_admin_name']);
             edu_flash_set('ログアウトしました。');
             header('Location: index.php');
             exit;
@@ -132,7 +154,7 @@ $summary = function (array $e) use ($config): void { ?>
       <span class="muted">#<?= (int)$e['id'] ?></span>
     </div>
     <div class="ev-meta">
-      <?= h(edu_date_label($e['start_at'])) ?> <?= h(edu_time_label($e['start_at'], $e['end_at'])) ?>
+      <?= h(edu_when_label($e)) ?>
       ／ <?= h($e['place']) ?> ／ <?= h(edu_organizer_label($e)) ?>
       ／ 対象: <?= h(str_replace(',', '、', $e['targets'])) ?>
     </div>
@@ -159,6 +181,35 @@ edu_layout_header($config, '管理', 'admin');
 <?php if ($fatal !== null): ?>
   <?php edu_db_error($fatal); ?>
 
+<?php elseif (edu_admin_count($pdo, false) === 0): ?>
+  <div class="panel narrow">
+    <h2>初回設定（最初の管理者を作成）</h2>
+    <p class="lead">管理者がまだ登録されていません。予定の承認などを行う最初の管理者を作成してください。<br>
+      作成後は、この画面は表示されません（2人目以降は「管理者アカウント」画面から追加します）。</p>
+    <?php edu_render_errors($errors); ?>
+    <form method="post" action="admin.php">
+      <?= edu_csrf_field() ?>
+      <input type="hidden" name="act" value="setup">
+      <div class="form-row">
+        <label>ログインID<span class="hint">半角英数字（例: kyouiku01）</span></label>
+        <input type="text" name="login_id" maxlength="32" value="<?= h((string)($_POST['login_id'] ?? '')) ?>" autocomplete="username">
+      </div>
+      <div class="form-row">
+        <label>氏名<span class="hint">承認者として記録されます</span></label>
+        <input type="text" name="name" maxlength="64" value="<?= h((string)($_POST['name'] ?? '')) ?>" placeholder="例: 教育委員会 山田">
+      </div>
+      <div class="form-row">
+        <label>パスワード<span class="hint">8文字以上</span></label>
+        <input type="password" name="password" autocomplete="new-password">
+      </div>
+      <div class="form-row">
+        <label>パスワード（確認）</label>
+        <input type="password" name="password2" autocomplete="new-password">
+      </div>
+      <button type="submit">管理者を作成してログイン</button>
+    </form>
+  </div>
+
 <?php elseif (!edu_is_admin()): ?>
   <div class="panel narrow">
     <h2>管理者ログイン（承認者用）</h2>
@@ -169,15 +220,16 @@ edu_layout_header($config, '管理', 'admin');
       <?= edu_csrf_field() ?>
       <input type="hidden" name="act" value="login">
       <div class="form-row">
-        <label>承認者名（記録に残ります）</label>
-        <input type="text" name="name" maxlength="64" placeholder="例: 教育委員会 山田">
+        <label>ログインID</label>
+        <input type="text" name="login_id" maxlength="32" autocomplete="username">
       </div>
       <div class="form-row">
-        <label>管理者パスワード</label>
+        <label>パスワード</label>
         <input type="password" name="password" autocomplete="current-password">
       </div>
       <button type="submit">ログイン</button>
     </form>
+    <p class="note">パスワードを忘れた場合は、ほかの管理者に「管理者アカウント」画面で再設定してもらってください。</p>
   </div>
 
 <?php else: ?>
@@ -275,7 +327,7 @@ edu_layout_header($config, '管理', 'admin');
         <?php foreach ($lists['all'] as $e): ?>
           <tr id="e<?= (int)$e['id'] ?>">
             <td class="num"><?= (int)$e['id'] ?></td>
-            <td class="nowrap"><?= h(edu_date_label($e['start_at'])) ?></td>
+            <td class="nowrap"><?= h(edu_date_label($e['start_at'])) ?><?= edu_is_online($e) ? '<br><span class="muted small">オンライン〜' . h(date('n/j', strtotime($e['end_at']))) . '</span>' : '' ?></td>
             <td><a href="view.php?id=<?= (int)$e['id'] ?>"><?= h($e['title']) ?></a></td>
             <td><?= h($e['organizer']) ?></td>
             <td class="nowrap"><span class="badge <?= h(edu_status_class($e['status'])) ?>"><?= h($statusMap[$e['status']] ?? $e['status']) ?></span></td>

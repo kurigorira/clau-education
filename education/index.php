@@ -10,6 +10,13 @@ require __DIR__ . '/common.php';
 require __DIR__ . '/store.php';
 require __DIR__ . '/form.php';
 
+$fatal = null;
+try {
+    $pdo = edu_mysql($config);   // 選択肢（主催区分・対象職種など）をDBから読み込む
+} catch (Throwable $e) {
+    $fatal = $e->getMessage();
+}
+
 $periods = ['upcoming' => '今後の予定', 'past' => '終了した研修', 'all' => 'すべて'];
 $typeOptions = edu_organizer_type_options($config);
 
@@ -31,12 +38,10 @@ if (!in_array($filters['target'], $config['targets'], true))              { $fil
 $page    = max(1, (int)($_GET['page'] ?? 1));
 $perPage = max(1, (int)$config['per_page']);
 
-$fatal = null;
 $rows = [];
 $total = 0;
 $counts = null;
-try {
-    $pdo    = edu_mysql($config);
+if ($fatal === null) try {
     $counts = edu_summary_counts($pdo);
     $result = edu_search($pdo, $filters, $page, $perPage);
     $rows   = $result['rows'];
@@ -138,20 +143,27 @@ edu_layout_header($config, '予定一覧', 'list');
           <?php
             $ym = date('Y年n月', strtotime($r['start_at']));
             $isCancelled = $r['status'] === 'cancelled';
-            $isToday = date('Y-m-d', strtotime($r['start_at'])) === $today;
+            $isToday = !edu_is_online($r) && date('Y-m-d', strtotime($r['start_at'])) === $today;
           ?>
           <?php if ($ym !== $prevMonth): $prevMonth = $ym; ?>
             <tr class="month-row"><td colspan="6"><?= h($ym) ?></td></tr>
           <?php endif; ?>
           <tr class="<?= $isCancelled ? 'cancelled' : '' ?> <?= $isToday ? 'today' : '' ?>">
             <td class="nowrap" data-label="日時">
-              <strong><?= h(edu_date_label($r['start_at'])) ?></strong><br>
-              <span class="muted"><?= h(edu_time_label($r['start_at'], $r['end_at'])) ?></span>
+              <?php if (edu_is_online($r)): ?>
+                <span class="muted small">視聴期間</span><br>
+                <strong><?= h(edu_date_label($r['start_at'])) ?></strong><br>
+                <span class="muted">〜<?= h(edu_date_label($r['end_at'])) ?></span>
+              <?php else: ?>
+                <strong><?= h(edu_date_label($r['start_at'])) ?></strong><br>
+                <span class="muted"><?= h(edu_time_label($r['start_at'], $r['end_at'])) ?></span>
+              <?php endif; ?>
             </td>
             <td data-label="研修名">
               <?php if ($isToday): ?><span class="badge badge-today">本日</span><?php endif; ?>
               <?php if ($isCancelled): ?><span class="badge badge-muted">中止</span><?php endif; ?>
               <?php if ((int)$r['is_mandatory'] === 1): ?><span class="badge badge-must">必須</span><?php endif; ?>
+              <?php if (!$isCancelled) { edu_render_online_badges($r); } ?>
               <?php if ((int)$r['changed_after_approval'] === 1): ?><span class="badge badge-progress">変更あり</span><?php endif; ?>
               <a href="view.php?id=<?= (int)$r['id'] ?>" class="title"><?= h($r['title']) ?></a>
             </td>

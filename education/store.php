@@ -6,6 +6,8 @@
  *
  * edu_events … 研修・勉強会の予定（承認状態・変更ありフラグを含む）
  * edu_logs   … 操作履歴（登録・編集・承認・差戻し・中止・削除・管理者ログイン失敗）
+ * edu_masters … 選択肢（主催・会場・対象職種・種別）。管理画面で編集する
+ * edu_admins  … 管理者（承認者）アカウント。管理画面で追加・パスワード変更する
  */
 if (!defined('EDU_APP')) { http_response_code(403); exit('Forbidden'); }
 
@@ -13,6 +15,7 @@ if (!defined('EDU_APP')) { http_response_code(403); exit('Forbidden'); }
 function edu_field_labels(): array
 {
     return [
+        'format'         => '開催形式',
         'title'          => '研修名',
         'category'       => '種別',
         'organizer_type' => '主催区分',
@@ -30,8 +33,12 @@ function edu_field_labels(): array
     ];
 }
 
-/** 設定の MySQL へ接続し、テーブルが無ければ作成して返す */
-function edu_mysql(array $config): PDO
+/**
+ * 設定の MySQL へ接続し、テーブルが無ければ作成して返す。
+ * あわせて選択肢（$config の organizers/places/targets/categories）を DB の内容に置き換え、
+ * 管理者ログイン状態を確認する（無効化されたアカウントはここでログアウト）。
+ */
+function edu_mysql(array &$config): PDO
 {
     $m = $config['mysql'];
     $dsn = sprintf(
@@ -45,6 +52,8 @@ function edu_mysql(array $config): PDO
     ]);
     $pdo->exec("SET time_zone = '+09:00'");
     edu_ensure_tables($pdo);
+    edu_load_masters($pdo, $config);
+    edu_refresh_admin($pdo);
     return $pdo;
 }
 
@@ -82,6 +91,11 @@ function edu_ensure_tables(PDO $pdo): void
            KEY idx_organizer_type (organizer_type)
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    // 既存環境（format 列が無い旧テーブル）向けの追加マイグレーション
+    $hasFormat = $pdo->query("SHOW COLUMNS FROM edu_events LIKE 'format'")->fetch();
+    if (!$hasFormat) {
+        $pdo->exec("ALTER TABLE edu_events ADD COLUMN format VARCHAR(16) NOT NULL DEFAULT 'venue' AFTER id");
+    }
     // 予定を削除しても履歴は残す（外部キーは張らない）
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS edu_logs (
@@ -97,6 +111,227 @@ function edu_ensure_tables(PDO $pdo): void
            KEY idx_action_ip (action, ip, created_at)
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS edu_masters (
+           id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+           kind       VARCHAR(16)  NOT NULL,
+           group_name VARCHAR(32)  NOT NULL DEFAULT \'\',
+           name       VARCHAR(100) NOT NULL,
+           sort_order INT          NOT NULL DEFAULT 0,
+           active     TINYINT      NOT NULL DEFAULT 1,
+           created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           PRIMARY KEY (id),
+           UNIQUE KEY uq_master (kind, group_name, name),
+           KEY idx_kind (kind, active, sort_order)
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS edu_admins (
+           id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+           login_id      VARCHAR(32)  NOT NULL,
+           name          VARCHAR(64)  NOT NULL,
+           pass_hash     VARCHAR(255) NOT NULL,
+           active        TINYINT      NOT NULL DEFAULT 1,
+           last_login_at DATETIME     NULL,
+           created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           PRIMARY KEY (id),
+           UNIQUE KEY uq_login (login_id)
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+}
+
+/* ---------------- 選択肢マスタ ---------------- */
+
+/** マスタの種類 => 表示名 */
+function edu_master_kinds(): array
+{
+    return [
+        'organizer' => '主催（委員会・本部・部署）',
+        'place'     => '会場',
+        'target'    => '対象職種',
+        'category'  => '種別',
+    ];
+}
+
+/**
+ * DB の選択肢を $config に反映する。
+ * 種類ごとに DB が空なら config.php / config.local.php の値を初期値として投入する。
+ */
+function edu_load_masters(PDO $pdo, array &$config): void
+{
+    $rows = $pdo->query('SELECT kind, group_name, name, active FROM edu_masters ORDER BY kind, sort_order, id')->fetchAll();
+    $has = [];
+    foreach ($rows as $r) { $has[$r['kind']] = true; }
+
+    $seed = [];
+    if (empty($has['organizer'])) {
+        foreach ($config['organizers'] as $group => $names) {
+            foreach ($names as $n) { $seed[] = ['organizer', (string)$group, (string)$n]; }
+        }
+    }
+    foreach (['place' => 'places', 'target' => 'targets', 'category' => 'categories'] as $kind => $key) {
+        if (empty($has[$kind])) {
+            foreach ($config[$key] as $n) { $seed[] = [$kind, '', (string)$n]; }
+        }
+    }
+    if ($seed) {
+        $ins = $pdo->prepare('INSERT IGNORE INTO edu_masters (kind, group_name, name, sort_order) VALUES (?,?,?,?)');
+        foreach ($seed as $i => [$kind, $group, $name]) {
+            $ins->execute([$kind, $group, $name, ($i + 1) * 10]);
+        }
+        $rows = $pdo->query('SELECT kind, group_name, name, active FROM edu_masters ORDER BY kind, sort_order, id')->fetchAll();
+    }
+
+    $organizers = [];
+    $lists = ['place' => [], 'target' => [], 'category' => []];
+    foreach ($rows as $r) {
+        if (!(int)$r['active']) { continue; }
+        if ($r['kind'] === 'organizer') {
+            $organizers[$r['group_name']][] = $r['name'];
+        } elseif (isset($lists[$r['kind']])) {
+            $lists[$r['kind']][] = $r['name'];
+        }
+    }
+    $config['organizers'] = $organizers;
+    $config['places']     = $lists['place'];
+    $config['targets']    = $lists['target'];
+    $config['categories'] = $lists['category'];
+}
+
+/** マスタ一覧（管理画面用・使用停止も含む） */
+function edu_master_rows(PDO $pdo, string $kind): array
+{
+    if ($kind === 'organizer') {
+        // 主催は区分ごとにまとめる（区分の並びは各区分の最小 sort_order 順）
+        $st = $pdo->prepare(
+            'SELECT m.* FROM edu_masters m
+               JOIN (SELECT group_name, MIN(sort_order) AS g FROM edu_masters WHERE kind = ? GROUP BY group_name) x
+                 ON x.group_name = m.group_name
+              WHERE m.kind = ? ORDER BY x.g, m.group_name, m.sort_order, m.id'
+        );
+        $st->execute([$kind, $kind]);
+    } else {
+        $st = $pdo->prepare('SELECT * FROM edu_masters WHERE kind = ? ORDER BY sort_order, id');
+        $st->execute([$kind]);
+    }
+    return $st->fetchAll();
+}
+
+function edu_master_find(PDO $pdo, int $id): ?array
+{
+    $st = $pdo->prepare('SELECT * FROM edu_masters WHERE id = ?');
+    $st->execute([$id]);
+    return $st->fetch() ?: null;
+}
+
+/** 選択肢を追加する（同じ名前が既にあれば false） */
+function edu_master_add(PDO $pdo, string $kind, string $group, string $name): bool
+{
+    $st = $pdo->prepare('SELECT COUNT(*) FROM edu_masters WHERE kind = ? AND group_name = ? AND name = ?');
+    $st->execute([$kind, $group, $name]);
+    if ((int)$st->fetchColumn() > 0) { return false; }
+    // 末尾に追加する（新しい区分は既存の区分の後ろに並ぶ）
+    $st = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM edu_masters WHERE kind = ?');
+    $st->execute([$kind]);
+    $order = (int)$st->fetchColumn();
+    $pdo->prepare('INSERT INTO edu_masters (kind, group_name, name, sort_order) VALUES (?,?,?,?)')
+        ->execute([$kind, $group, $name, $order]);
+    return true;
+}
+
+/** 名前・区分を変更する（同名があれば false）。登録済みの予定の表記は変えない */
+function edu_master_rename(PDO $pdo, array $m, string $group, string $name): bool
+{
+    $st = $pdo->prepare('SELECT COUNT(*) FROM edu_masters WHERE kind = ? AND group_name = ? AND name = ? AND id <> ?');
+    $st->execute([$m['kind'], $group, $name, (int)$m['id']]);
+    if ((int)$st->fetchColumn() > 0) { return false; }
+    $pdo->prepare('UPDATE edu_masters SET group_name = ?, name = ? WHERE id = ?')->execute([$group, $name, (int)$m['id']]);
+    return true;
+}
+
+function edu_master_set_active(PDO $pdo, int $id, bool $active): void
+{
+    $pdo->prepare('UPDATE edu_masters SET active = ? WHERE id = ?')->execute([$active ? 1 : 0, $id]);
+}
+
+/** 並び順を1つ上／下へ（同じ種類・同じ区分の中で入れ替える） */
+function edu_master_move(PDO $pdo, array $m, int $dir): void
+{
+    $rows = array_values(array_filter(
+        edu_master_rows($pdo, $m['kind']),
+        fn($r) => $r['group_name'] === $m['group_name']
+    ));
+    $ids = array_map(fn($r) => (int)$r['id'], $rows);
+    $i = array_search((int)$m['id'], $ids, true);
+    $j = $i === false ? false : $i + $dir;
+    if ($j === false || $j < 0 || $j >= count($ids)) { return; }
+    [$ids[$i], $ids[$j]] = [$ids[$j], $ids[$i]];
+    $base = (int)min(array_map(fn($r) => (int)$r['sort_order'], $rows));
+    $up = $pdo->prepare('UPDATE edu_masters SET sort_order = ? WHERE id = ?');
+    foreach ($ids as $k => $id) { $up->execute([$base + $k * 10, $id]); }
+}
+
+/* ---------------- 管理者アカウント ---------------- */
+
+function edu_admin_count(PDO $pdo, bool $activeOnly = true): int
+{
+    return (int)$pdo->query('SELECT COUNT(*) FROM edu_admins' . ($activeOnly ? ' WHERE active = 1' : ''))->fetchColumn();
+}
+
+function edu_admin_rows(PDO $pdo): array
+{
+    return $pdo->query('SELECT id, login_id, name, active, last_login_at, created_at FROM edu_admins ORDER BY active DESC, id')->fetchAll();
+}
+
+function edu_admin_find(PDO $pdo, int $id): ?array
+{
+    $st = $pdo->prepare('SELECT * FROM edu_admins WHERE id = ?');
+    $st->execute([$id]);
+    return $st->fetch() ?: null;
+}
+
+function edu_admin_find_login(PDO $pdo, string $loginId): ?array
+{
+    $st = $pdo->prepare('SELECT * FROM edu_admins WHERE login_id = ?');
+    $st->execute([$loginId]);
+    return $st->fetch() ?: null;
+}
+
+/** 管理者を追加する（ログインIDが重複していれば false） */
+function edu_admin_add(PDO $pdo, string $loginId, string $name, string $pass): bool
+{
+    if (edu_admin_find_login($pdo, $loginId) !== null) { return false; }
+    $pdo->prepare('INSERT INTO edu_admins (login_id, name, pass_hash) VALUES (?,?,?)')
+        ->execute([$loginId, $name, password_hash($pass, PASSWORD_DEFAULT)]);
+    return true;
+}
+
+function edu_admin_set_pass(PDO $pdo, int $id, string $pass): void
+{
+    $pdo->prepare('UPDATE edu_admins SET pass_hash = ? WHERE id = ?')->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+}
+
+function edu_admin_set_name(PDO $pdo, int $id, string $name): void
+{
+    $pdo->prepare('UPDATE edu_admins SET name = ? WHERE id = ?')->execute([$name, $id]);
+}
+
+function edu_admin_set_active(PDO $pdo, int $id, bool $active): void
+{
+    $pdo->prepare('UPDATE edu_admins SET active = ? WHERE id = ?')->execute([$active ? 1 : 0, $id]);
+}
+
+/** ログイン中の管理者が無効化・削除されていればログアウトし、氏名の変更を反映する */
+function edu_refresh_admin(PDO $pdo): void
+{
+    $id = (int)($_SESSION['edu_admin_id'] ?? 0);
+    if ($id <= 0) { return; }
+    $a = edu_admin_find($pdo, $id);
+    if ($a === null || !(int)$a['active']) {
+        unset($_SESSION['edu_admin_id'], $_SESSION['edu_admin_name']);
+        return;
+    }
+    $_SESSION['edu_admin_name'] = $a['name'];
 }
 
 /** 操作履歴を1件記録する */
@@ -271,6 +506,10 @@ function edu_diff_text(array $before, array $after): string
             $old = $old !== '' ? date('Y/n/j G:i', strtotime($old)) : '';
             $new = $new !== '' ? date('Y/n/j G:i', strtotime($new)) : '';
         }
+        if ($col === 'format') {
+            $old = edu_format_label($old);
+            $new = edu_format_label($new);
+        }
         if ($col === 'is_mandatory') {
             $old = $old === '1' ? 'はい' : 'いいえ';
             $new = $new === '1' ? 'はい' : 'いいえ';
@@ -379,6 +618,22 @@ function edu_reset_pass(PDO $pdo, int $id, string $hash, string $who): void
 {
     $pdo->prepare('UPDATE edu_events SET edit_pass_hash = ? WHERE id = ?')->execute([$hash, $id]);
     edu_log($pdo, $id, 'reset_pass', $who, '編集用パスワードを再設定');
+}
+
+/** 複製元の候補（公開中・中止の予定。キーワードは研修名・主催・会場） */
+function edu_copy_candidates(PDO $pdo, string $q, int $limit = 20): array
+{
+    $where  = ["status IN ('approved','cancelled')"];
+    $params = [];
+    if ($q !== '') {
+        $like = '%' . addcslashes($q, '%_\\') . '%';
+        $where[] = '(title LIKE ? OR organizer LIKE ? OR place LIKE ?)';
+        array_push($params, $like, $like, $like);
+    }
+    $st = $pdo->prepare('SELECT * FROM edu_events WHERE ' . implode(' AND ', $where)
+                      . " ORDER BY start_at DESC, id DESC LIMIT $limit");
+    $st->execute($params);
+    return $st->fetchAll();
 }
 
 /** 年度（4月〜翌3月）の公開中・中止の予定（CSV出力用） */

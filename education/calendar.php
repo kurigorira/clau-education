@@ -9,6 +9,13 @@ require __DIR__ . '/common.php';
 require __DIR__ . '/store.php';
 require __DIR__ . '/form.php';
 
+$fatal = null;
+try {
+    $pdo = edu_mysql($config);   // 選択肢（種別・主催区分）をDBから読み込む
+} catch (Throwable $e) {
+    $fatal = $e->getMessage();
+}
+
 $typeOptions = edu_organizer_type_options($config);
 
 $ym = (string)($_GET['ym'] ?? date('Y-m'));
@@ -27,13 +34,22 @@ $gridStart = strtotime("-{$lead} day", $first);
 $weeks     = (int)ceil(($lead + $daysInMon) / 7);
 $gridEnd   = strtotime('+' . ($weeks * 7) . ' day', $gridStart);
 
-$fatal = null;
 $byDate = [];
-try {
-    $pdo = edu_mysql($config);
+$monthIds = [];   // 当月に表示される予定（件数表示用。オンラインは1件として数える）
+if ($fatal === null) try {
     $events = edu_events_between($pdo, date('Y-m-d', $gridStart), date('Y-m-d', $gridEnd), $filters);
+    // 会場開催を先、オンライン視聴（期間中の毎日に帯で表示）を後に並べる
+    usort($events, fn($a, $b) => [edu_is_online($a), $a['start_at']] <=> [edu_is_online($b), $b['start_at']]);
+    $gridLast = date('Y-m-d', strtotime('-1 day', $gridEnd));
     foreach ($events as $e) {
-        $byDate[date('Y-m-d', strtotime($e['start_at']))][] = $e;
+        $from = date('Y-m-d', strtotime($e['start_at']));
+        $to   = edu_is_online($e) ? date('Y-m-d', strtotime($e['end_at'])) : $from;
+        $d    = max($from, date('Y-m-d', $gridStart));
+        $last = min($to, $gridLast);
+        for (; $d <= $last; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            $byDate[$d][] = $e;
+            if (substr($d, 0, 7) === $ym) { $monthIds[$e['id']] = true; }
+        }
     }
 } catch (Throwable $e) {
     $fatal = $e->getMessage();
@@ -47,10 +63,7 @@ $monthUrl = function (string $target) use ($filters): string {
 $prev  = date('Y-m', strtotime('-1 month', $first));
 $next  = date('Y-m', strtotime('+1 month', $first));
 $today = date('Y-m-d');
-$monthCount = 0;
-foreach ($byDate as $d => $list) {
-    if (substr($d, 0, 7) === $ym) { $monthCount += count($list); }
-}
+$monthCount = count($monthIds);
 
 edu_layout_header($config, date('Y年n月', $first) . 'のカレンダー', 'calendar');
 ?>
@@ -88,6 +101,7 @@ edu_layout_header($config, date('Y年n月', $first) . 'のカレンダー', 'cal
       <span class="badge cat <?= h(edu_category_class($config, $c)) ?>"><?= h($c) ?></span>
     <?php endforeach; ?>
     <span class="badge badge-must">必須</span>
+    <span class="ev-sample online">視聴</span><span class="muted">＝オンライン視聴期間（期間中の毎日に表示）</span>
     <span class="muted">取り消し線＝中止</span>
   </div>
 
@@ -116,10 +130,22 @@ edu_layout_header($config, date('Y年n月', $first) . 'のカレンダー', 'cal
             <td class="<?= implode(' ', $cls) ?>">
               <div class="day"><?= (int)date('j', $ts) ?><span class="wd">(<?= edu_wday($ts) ?>)</span></div>
               <?php foreach ($list as $e): ?>
+                <?php
+                  $online = edu_is_online($e);
+                  $mark = '';
+                  if ($online) {
+                      if ($date === date('Y-m-d', strtotime($e['start_at']))) { $mark = '配信開始'; }
+                      if ($date === date('Y-m-d', strtotime($e['end_at'])))   { $mark = '締切'; }
+                  }
+                ?>
                 <a href="view.php?id=<?= (int)$e['id'] ?>"
-                   class="ev <?= h(edu_category_class($config, $e['category'])) ?> <?= $e['status'] === 'cancelled' ? 'cancelled' : '' ?>"
-                   title="<?= h($e['title'] . '／' . $e['place'] . '／' . $e['organizer']) ?>">
-                  <span class="t"><?= h(date('G:i', strtotime($e['start_at']))) ?></span>
+                   class="ev <?= h(edu_category_class($config, $e['category'])) ?> <?= $online ? 'online' : '' ?> <?= $mark === '締切' ? 'deadline' : '' ?> <?= $e['status'] === 'cancelled' ? 'cancelled' : '' ?>"
+                   title="<?= h($e['title'] . '／' . edu_when_label($e) . '／' . $e['organizer']) ?>">
+                  <?php if ($online): ?>
+                    <span class="t"><?= $mark !== '' ? h($mark) : '視聴' ?></span>
+                  <?php else: ?>
+                    <span class="t"><?= h(date('G:i', strtotime($e['start_at']))) ?></span>
+                  <?php endif; ?>
                   <?php if ((int)$e['is_mandatory'] === 1): ?><span class="must">必須</span><?php endif; ?>
                   <?= h($e['title']) ?>
                 </a>

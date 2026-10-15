@@ -11,9 +11,11 @@ const EDU_OTHER = '__other__';   // 主催「その他（自由入力）」の�
 function edu_form_defaults(): array
 {
     return [
+        'format' => 'venue',
         'title' => '', 'category' => '', 'organizer' => '', 'organizer_other' => '',
         'targets' => [], 'is_mandatory' => '0',
         'date' => '', 'start_time' => '', 'end_time' => '',
+        'online_from' => '', 'online_to' => '',
         'place' => '', 'capacity' => '', 'body' => '',
         'contact_name' => '', 'contact_dept' => '', 'contact_ext' => '',
     ];
@@ -35,21 +37,41 @@ function edu_organizer_type_options(array $config): array
     return array_merge(array_keys($config['organizers']), ['その他']);
 }
 
+/**
+ * 編集時、予定に保存済みの種別・対象が選択肢から外れて（使用停止されて）いても
+ * そのまま選べるように選択肢へ加える。
+ */
+function edu_config_with_event(array $config, array $e): array
+{
+    if (!in_array($e['category'], $config['categories'], true)) {
+        $config['categories'][] = $e['category'];
+    }
+    foreach ($e['targets'] !== '' ? explode(',', $e['targets']) : [] as $t) {
+        if (!in_array($t, $config['targets'], true)) { $config['targets'][] = $t; }
+    }
+    return $config;
+}
+
 /** DBの予定行をフォーム値に変換する（編集画面の初期値） */
 function edu_form_from_event(array $config, array $e): array
 {
     $known = edu_organizer_types($config);
     $isKnown = isset($known[$e['organizer']]);
+    $online  = edu_is_online($e);
+    $from    = date('Y-m-d', strtotime($e['start_at']));
     return [
+        'format'          => $online ? 'online' : 'venue',
         'title'           => $e['title'],
         'category'        => $e['category'],
         'organizer'       => $isKnown ? $e['organizer'] : EDU_OTHER,
         'organizer_other' => $isKnown ? '' : $e['organizer'],
         'targets'         => $e['targets'] !== '' ? explode(',', $e['targets']) : [],
         'is_mandatory'    => (string)(int)$e['is_mandatory'],
-        'date'            => date('Y-m-d', strtotime($e['start_at'])),
-        'start_time'      => date('H:i', strtotime($e['start_at'])),
-        'end_time'        => $e['end_at'] ? date('H:i', strtotime($e['end_at'])) : '',
+        'date'            => $online ? '' : $from,
+        'start_time'      => $online ? '' : date('H:i', strtotime($e['start_at'])),
+        'end_time'        => !$online && $e['end_at'] ? date('H:i', strtotime($e['end_at'])) : '',
+        'online_from'     => $online ? $from : '',
+        'online_to'       => $online && $e['end_at'] ? date('Y-m-d', strtotime($e['end_at'])) : '',
         'place'           => $e['place'],
         'capacity'        => $e['capacity'] !== null ? (string)$e['capacity'] : '',
         'body'            => $e['body'],
@@ -77,9 +99,11 @@ function edu_form_read(array $config, array $post): array
         }
     }
     $old['is_mandatory'] = $old['is_mandatory'] === '1' ? '1' : '0';
+    $old['format'] = $old['format'] === 'online' ? 'online' : 'venue';
+    $online = $old['format'] === 'online';
 
     $errors = [];
-    $len = function (string $key, string $label, int $max, bool $required) use ($old, &$errors) {
+    $len = function (string $key, string $label, int $max, bool $required) use (&$old, &$errors) {
         if ($required && $old[$key] === '') {
             $errors[] = "{$label}を入力してください。";
         } elseif (mb_strlen($old[$key]) > $max) {
@@ -110,24 +134,55 @@ function edu_form_read(array $config, array $post): array
         $errors[] = '対象を1つ以上選んでください。';
     }
 
-    $date = DateTime::createFromFormat('!Y-m-d', $old['date']);
-    if (!$date || $date->format('Y-m-d') !== $old['date']) {
-        $errors[] = '開催日を正しく入力してください。';
-        $date = null;
-    }
-    $timeOk = fn(string $t) => (bool)preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t);
-    if (!$timeOk($old['start_time'])) {
-        $errors[] = '開始時刻を正しく入力してください（例 17:30）。';
-    }
-    if ($old['end_time'] !== '') {
-        if (!$timeOk($old['end_time'])) {
-            $errors[] = '終了時刻を正しく入力してください（例 18:30）。';
-        } elseif ($timeOk($old['start_time']) && $old['end_time'] <= $old['start_time']) {
-            $errors[] = '終了時刻は開始時刻より後にしてください。';
+    $parseDate = function (string $v) {
+        $d = DateTime::createFromFormat('!Y-m-d', $v);
+        return ($d && $d->format('Y-m-d') === $v) ? $d : null;
+    };
+    $startAt = $endAt = null;
+    if ($online) {
+        // ---- オンライン視聴：視聴期間（開始日〜終了日） ----
+        $from = $parseDate($old['online_from']);
+        $to   = $parseDate($old['online_to']);
+        if (!$from) { $errors[] = '視聴開始日を正しく入力してください。'; }
+        if (!$to)   { $errors[] = '視聴終了日（締切）を正しく入力してください。'; }
+        if ($from && $to) {
+            if ($to < $from) {
+                $errors[] = '視聴終了日は開始日以降にしてください。';
+            } elseif ($from->diff($to)->days > 366) {
+                $errors[] = '視聴期間は1年以内にしてください。';
+            } else {
+                $startAt = $from->format('Y-m-d') . ' 00:00:00';
+                $endAt   = $to->format('Y-m-d') . ' 23:59:59';
+            }
+        }
+    } else {
+        // ---- 会場で開催：開催日＋時刻 ----
+        $date = $parseDate($old['date']);
+        if (!$date) {
+            $errors[] = '開催日を正しく入力してください。';
+        }
+        $timeOk = fn(string $t) => (bool)preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $t);
+        if (!$timeOk($old['start_time'])) {
+            $errors[] = '開始時刻を正しく入力してください（例 17:30）。';
+        }
+        if ($old['end_time'] !== '') {
+            if (!$timeOk($old['end_time'])) {
+                $errors[] = '終了時刻を正しく入力してください（例 18:30）。';
+            } elseif ($timeOk($old['start_time']) && $old['end_time'] <= $old['start_time']) {
+                $errors[] = '終了時刻は開始時刻より後にしてください。';
+            }
+        }
+        if ($date && $timeOk($old['start_time'])) {
+            $d = $date->format('Y-m-d');
+            $startAt = "$d {$old['start_time']}:00";
+            $endAt   = $old['end_time'] !== '' && $timeOk($old['end_time']) ? "$d {$old['end_time']}:00" : null;
         }
     }
 
-    $len('place', '会場', 100, true);
+    if ($online && $old['place'] === '') {
+        $old['place'] = 'オンライン';
+    }
+    $len('place', $online ? '視聴方法・URL' : '会場', 100, true);
     if ($old['capacity'] !== '' && (!ctype_digit($old['capacity']) || (int)$old['capacity'] > 100000)) {
         $errors[] = '定員は数字で入力してください（未定なら空欄）。';
     }
@@ -138,16 +193,16 @@ function edu_form_read(array $config, array $post): array
 
     $data = [];
     if (!$errors) {
-        $d = $date->format('Y-m-d');
         $data = [
+            'format'         => $old['format'],
             'title'          => $old['title'],
             'category'       => $old['category'],
             'organizer_type' => $organizerType,
             'organizer'      => $organizer,
             'targets'        => implode(',', $old['targets']),
             'is_mandatory'   => (int)$old['is_mandatory'],
-            'start_at'       => "$d {$old['start_time']}:00",
-            'end_at'         => $old['end_time'] !== '' ? "$d {$old['end_time']}:00" : null,
+            'start_at'       => $startAt,
+            'end_at'         => $endAt,
             'place'          => $old['place'],
             'capacity'       => $old['capacity'] !== '' ? (int)$old['capacity'] : null,
             'body'           => $old['body'],
@@ -212,25 +267,54 @@ function edu_render_form_fields(array $config, array $old): void
     </fieldset>
 
     <fieldset>
-      <legend>日時・会場</legend>
-      <div class="form-grid">
-        <div class="form-row">
-          <label>開催日<span class="required">必須</span></label>
-          <input type="date" name="date" value="<?= h($old['date']) ?>">
-        </div>
-        <div class="form-row">
-          <label>開始時刻<span class="required">必須</span></label>
-          <input type="time" name="start_time" value="<?= h($old['start_time']) ?>" step="300">
-        </div>
-        <div class="form-row">
-          <label>終了時刻</label>
-          <input type="time" name="end_time" value="<?= h($old['end_time']) ?>" step="300">
+      <legend>開催形式・日時・会場</legend>
+      <div class="form-row">
+        <label>開催形式<span class="required">必須</span></label>
+        <div class="checks format-choice">
+          <label class="check"><input type="radio" name="format" value="venue" <?= $old['format'] !== 'online' ? 'checked' : '' ?>>
+            会場で開催（日時を決めて集合）</label>
+          <label class="check"><input type="radio" name="format" value="online" <?= $old['format'] === 'online' ? 'checked' : '' ?>>
+            オンライン視聴（視聴期間を指定）</label>
         </div>
       </div>
-      <div class="note">複数日にわたる研修は、日ごとに登録してください（研修名に「1日目」「2日目」など）。</div>
+
+      <div class="format-block" data-format="venue">
+        <div class="block-title">会場で開催する場合</div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>開催日<span class="required">必須</span></label>
+            <input type="date" name="date" value="<?= h($old['date']) ?>">
+          </div>
+          <div class="form-row">
+            <label>開始時刻<span class="required">必須</span></label>
+            <input type="time" name="start_time" value="<?= h($old['start_time']) ?>" step="300">
+          </div>
+          <div class="form-row">
+            <label>終了時刻</label>
+            <input type="time" name="end_time" value="<?= h($old['end_time']) ?>" step="300">
+          </div>
+        </div>
+        <div class="note">複数日にわたる研修は、日ごとに登録してください（研修名に「1日目」「2日目」など）。</div>
+      </div>
+
+      <div class="format-block" data-format="online">
+        <div class="block-title">オンライン視聴の場合</div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>視聴開始日<span class="required">必須</span></label>
+            <input type="date" name="online_from" value="<?= h($old['online_from']) ?>">
+          </div>
+          <div class="form-row">
+            <label>視聴終了日（締切）<span class="required">必須</span></label>
+            <input type="date" name="online_to" value="<?= h($old['online_to']) ?>">
+          </div>
+        </div>
+        <div class="note">期間内に視聴できなかった場合の扱い（レポート提出など）は、下の「内容・参加方法など」に記入してください。</div>
+      </div>
+
       <div class="form-grid">
         <div class="form-row">
-          <label>会場<span class="required">必須</span></label>
+          <label>会場（オンラインは視聴方法）<span class="required">必須</span></label>
           <input type="text" name="place" value="<?= h($old['place']) ?>" maxlength="100" list="places">
           <datalist id="places">
             <?php foreach ($config['places'] as $p): ?><option value="<?= h($p) ?>"><?php endforeach; ?>
@@ -243,9 +327,25 @@ function edu_render_form_fields(array $config, array $old): void
       </div>
       <div class="form-row">
         <label>内容・参加方法など</label>
-        <textarea name="body" maxlength="5000" placeholder="講師、内容、持ち物、申込方法（例: 各部署でとりまとめて○日までに教育委員へ）など"><?= h($old['body']) ?></textarea>
+        <textarea name="body" maxlength="5000" placeholder="講師、内容、持ち物、申込方法（例: 各部署でとりまとめて○日までに教育委員へ）&#10;オンラインの場合: 視聴方法、期間内に視聴できなかった場合のレポート提出先・期限 など"><?= h($old['body']) ?></textarea>
       </div>
     </fieldset>
+    <script>
+    // 選んだ開催形式の入力欄だけを表示する（JavaScript が無効でも両方表示され、選んだ形式の欄だけ検証される）
+    (function () {
+      var radios = document.querySelectorAll('input[name="format"]');
+      function apply() {
+        var v = document.querySelector('input[name="format"]:checked').value;
+        document.querySelectorAll('.format-block').forEach(function (b) {
+          b.style.display = b.getAttribute('data-format') === v ? '' : 'none';
+        });
+        var place = document.querySelector('input[name="place"]');
+        if (v === 'online' && place && place.value === '') { place.value = 'オンライン（院内配信）'; }
+      }
+      radios.forEach(function (r) { r.addEventListener('change', apply); });
+      apply();
+    })();
+    </script>
 
     <fieldset>
       <legend>担当者（問い合わせ先）</legend>

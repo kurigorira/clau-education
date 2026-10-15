@@ -1,7 +1,7 @@
 <?php
 /**
  * 研修スケジュールアプリの動作診断。ブラウザで education/check.php を開くと、
- * [1] PHP環境 [2] MySQL接続・テーブル作成 [3] 管理者パスワード [4] 登録件数 を順に確認します。
+ * [1] PHP環境 [2] MySQL接続・テーブル作成 [3] 管理者アカウント・選択肢 [4] 登録件数 を順に確認します。
  * 正常稼働を確認したら削除して構いません。
  */
 define('EDU_APP', true);
@@ -55,15 +55,18 @@ try {
 }
 echo "</ul>";
 
-// ---- [3] 管理者パスワード ----
-echo "<h2>3. 管理者パスワード</h2><ul>";
-$hash = (string)$config['admin_password_hash'];
-if ($hash === '') {
-    echo "<li>admin_password_hash：" . $ng('未設定です。tools/make_password_hash.php でハッシュを作成し config.local.php に記入してください') . "</li>";
-} elseif (password_get_info($hash)['algo'] === null || password_get_info($hash)['algo'] === 0) {
-    echo "<li>admin_password_hash：" . $ng('ハッシュの形式ではありません（平文のパスワードを書いていないか確認）') . "</li>";
-} else {
-    echo "<li>admin_password_hash：$ok</li>";
+// ---- [3] 管理者アカウント・選択肢 ----
+echo "<h2>3. 管理者アカウント・選択肢</h2><ul>";
+if ($pdo !== null) {
+    $n = edu_admin_count($pdo);
+    echo "<li>有効な管理者：{$n} 人" . ($n > 0 ? $ok
+        : $warn('まだいません。admin.php を開いて「初回設定」で最初の管理者を作成してください')) . "</li>";
+    foreach (edu_master_kinds() as $kind => $label) {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM edu_masters WHERE kind = ? AND active = 1');
+        $st->execute([$kind]);
+        $c = (int)$st->fetchColumn();
+        echo "<li>選択肢「" . h($label) . "」：{$c} 件" . ($c > 0 ? $ok : $warn('「選択肢の管理」で追加してください')) . "</li>";
+    }
 }
 echo "<li>config.local.php：" . (is_file(__DIR__ . '/config.local.php') ? $ok : $warn('未作成（config.php の既定値で動作中）')) . "</li>";
 echo "</ul>";

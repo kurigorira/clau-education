@@ -199,6 +199,37 @@ details.inline { display: inline-block; font-size: 12px; }
 details.inline summary { cursor: pointer; color: #0d3b66; }
 details.inline[open] { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
 
+/* オンライン視聴 */
+.badge-online  { background: #e0f2fe; color: #075985; border: 1px solid #b6def5; }
+.badge-before  { background: #f2f2f2; color: #4a4a4a; border: 1px solid #dcdcdc; }
+.badge-open    { background: #e6f4ea; color: #1b6b35; border: 1px solid #c3e3cc; }
+.badge-closing { background: #fff3cd; color: #7a5b00; border: 1px solid #f0e0a0; }
+.badge-closed  { background: #eceff3; color: #57626f; border: 1px solid #d5dbe3; }
+a.ev.online { padding: 1px 5px; font-size: 11px; border-style: dashed; white-space: nowrap;
+              text-overflow: ellipsis; opacity: .9; }
+a.ev.online .t { font-weight: 400; }
+a.ev.online.deadline { border-style: solid; font-weight: 700; }
+a.ev.online.deadline .t { color: #a02525; font-weight: 700; }
+.ev-sample { display: inline-block; font-size: 11px; border: 1px dashed #b6def5; background: #e0f2fe;
+             color: #075985; border-radius: 4px; padding: 0 5px; }
+.note { font-size: 12px; color: #6b7785; margin: 4px 0 10px; }
+.format-choice { gap: 8px 24px; }
+.format-block { background: #f8fafc; border: 1px solid #e4e9f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
+.format-block .block-title { font-size: 13px; font-weight: 700; color: #0d3b66; margin-bottom: 6px; }
+
+/* 過去の研修から複製 */
+details.copy-panel > summary { cursor: pointer; color: #0d3b66; }
+details.copy-panel[open] > summary { margin-bottom: 12px; }
+
+/* 選択肢の管理・管理者アカウント */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 2px solid #d5dee9; }
+.tabs a { padding: 8px 14px; text-decoration: none; color: #40506b; font-size: 14px;
+          border-radius: 6px 6px 0 0; }
+.tabs a.active { background: #0d3b66; color: #fff; font-weight: 700; }
+table.data tr.inactive td { color: #8a94a3; background: #fafbfc; }
+form.inline select { padding: 5px 6px; border: 1px solid #c9d3e0; border-radius: 6px; font-size: 13px; }
+.form-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 16px; }
+
 /* スマホ幅：一覧はカード表示、カレンダーは縦並び */
 @media (max-width: 700px) {
   .container { padding: 0 12px; }

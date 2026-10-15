@@ -22,6 +22,9 @@ $locked = false;
 try {
     $pdo   = edu_mysql($config);
     $event = $id > 0 ? edu_find($pdo, $id) : null;
+    if ($event !== null) {
+        $config = edu_config_with_event($config, $event);
+    }
 } catch (Throwable $e) {
     $fatal = $e->getMessage();
 }
@@ -115,7 +118,7 @@ edu_layout_header($config, $event ? '変更・中止：' . $event['title'] : '�
   <div class="panel narrow">
     <h2>変更・中止：<?= h($event['title']) ?></h2>
     <p class="lead">
-      <?= h(edu_date_label($event['start_at'])) ?> <?= h(edu_time_label($event['start_at'], $event['end_at'])) ?>
+      <?= h(edu_when_label($event)) ?>
       ／ 登録者 <?= h($event['contact_name']) ?><br>
       登録時に決めた<strong>編集用パスワード</strong>を入力してください。
     </p>
