@@ -16,7 +16,7 @@ function edu_form_defaults(): array
         'targets' => [], 'is_mandatory' => '0',
         'date' => '', 'start_time' => '', 'end_time' => '',
         'online_from' => '', 'online_to' => '',
-        'place' => '', 'capacity' => '', 'body' => '',
+        'place' => '', 'delivery' => '', 'capacity' => '', 'body' => '',
         'contact_name' => '', 'contact_dept' => '', 'contact_ext' => '',
     ];
 }
@@ -49,6 +49,9 @@ function edu_config_with_event(array $config, array $e): array
     foreach ($e['targets'] !== '' ? explode(',', $e['targets']) : [] as $t) {
         if (!in_array($t, $config['targets'], true)) { $config['targets'][] = $t; }
     }
+    if (edu_is_online($e) && $e['place'] !== '' && !in_array($e['place'], $config['deliveries'], true)) {
+        $config['deliveries'][] = $e['place'];
+    }
     return $config;
 }
 
@@ -72,7 +75,8 @@ function edu_form_from_event(array $config, array $e): array
         'end_time'        => !$online && $e['end_at'] ? date('H:i', strtotime($e['end_at'])) : '',
         'online_from'     => $online ? $from : '',
         'online_to'       => $online && $e['end_at'] ? date('Y-m-d', strtotime($e['end_at'])) : '',
-        'place'           => $e['place'],
+        'place'           => $online ? '' : $e['place'],
+        'delivery'        => $online ? $e['place'] : '',
         'capacity'        => $e['capacity'] !== null ? (string)$e['capacity'] : '',
         'body'            => $e['body'],
         'contact_name'    => $e['contact_name'],
@@ -179,10 +183,14 @@ function edu_form_read(array $config, array $post): array
         }
     }
 
-    if ($online && $old['place'] === '') {
-        $old['place'] = 'オンライン';
+    if ($online) {
+        // オンライン視聴は「会場」ではなく「配信方法」（CHATIS・GAKKEN など）を選ぶ
+        if (!in_array($old['delivery'], $config['deliveries'], true)) {
+            $errors[] = '配信方法を選択してください。';
+        }
+    } else {
+        $len('place', '会場', 100, true);
     }
-    $len('place', $online ? '視聴方法・URL' : '会場', 100, true);
     if ($old['capacity'] !== '' && (!ctype_digit($old['capacity']) || (int)$old['capacity'] > 100000)) {
         $errors[] = '定員は数字で入力してください（未定なら空欄）。';
     }
@@ -203,7 +211,7 @@ function edu_form_read(array $config, array $post): array
             'is_mandatory'   => (int)$old['is_mandatory'],
             'start_at'       => $startAt,
             'end_at'         => $endAt,
-            'place'          => $old['place'],
+            'place'          => $online ? $old['delivery'] : $old['place'],
             'capacity'       => $old['capacity'] !== '' ? (int)$old['capacity'] : null,
             'body'           => $old['body'],
             'contact_name'   => $old['contact_name'],
@@ -267,7 +275,7 @@ function edu_render_form_fields(array $config, array $old): void
     </fieldset>
 
     <fieldset>
-      <legend>開催形式・日時・会場</legend>
+      <legend>開催形式・日時・会場／配信方法</legend>
       <div class="form-row">
         <label>開催形式<span class="required">必須</span></label>
         <div class="checks format-choice">
@@ -294,6 +302,13 @@ function edu_render_form_fields(array $config, array $old): void
             <input type="time" name="end_time" value="<?= h($old['end_time']) ?>" step="300">
           </div>
         </div>
+        <div class="form-row">
+          <label>会場<span class="required">必須</span><span class="hint">研修を行う場所</span></label>
+          <input type="text" name="place" value="<?= h($old['place']) ?>" maxlength="100" list="places" placeholder="例: 6階会議室（約100名）">
+          <datalist id="places">
+            <?php foreach ($config['places'] as $p): ?><option value="<?= h($p) ?>"><?php endforeach; ?>
+          </datalist>
+        </div>
         <div class="note">複数日にわたる研修は、日ごとに登録してください（研修名に「1日目」「2日目」など）。</div>
       </div>
 
@@ -309,17 +324,19 @@ function edu_render_form_fields(array $config, array $old): void
             <input type="date" name="online_to" value="<?= h($old['online_to']) ?>">
           </div>
         </div>
+        <div class="form-row">
+          <label>配信方法<span class="required">必須</span><span class="hint">どのシステムで視聴するか</span></label>
+          <select name="delivery">
+            <option value="">選択してください</option>
+            <?php foreach ($config['deliveries'] as $d): ?>
+              <option value="<?= h($d) ?>" <?= $old['delivery'] === $d ? 'selected' : '' ?>><?= h($d) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
         <div class="note">期間内に視聴できなかった場合の扱い（レポート提出など）は、下の「内容・参加方法など」に記入してください。</div>
       </div>
 
       <div class="form-grid">
-        <div class="form-row">
-          <label>会場（オンラインは視聴方法）<span class="required">必須</span></label>
-          <input type="text" name="place" value="<?= h($old['place']) ?>" maxlength="100" list="places">
-          <datalist id="places">
-            <?php foreach ($config['places'] as $p): ?><option value="<?= h($p) ?>"><?php endforeach; ?>
-          </datalist>
-        </div>
         <div class="form-row">
           <label>定員</label>
           <input type="text" name="capacity" value="<?= h($old['capacity']) ?>" inputmode="numeric" placeholder="空欄＝制限なし">
@@ -339,8 +356,6 @@ function edu_render_form_fields(array $config, array $old): void
         document.querySelectorAll('.format-block').forEach(function (b) {
           b.style.display = b.getAttribute('data-format') === v ? '' : 'none';
         });
-        var place = document.querySelector('input[name="place"]');
-        if (v === 'online' && place && place.value === '') { place.value = 'オンライン（院内配信）'; }
       }
       radios.forEach(function (r) { r.addEventListener('change', apply); });
       apply();

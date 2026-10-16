@@ -155,7 +155,7 @@ $summary = function (array $e) use ($config): void { ?>
     </div>
     <div class="ev-meta">
       <?= h(edu_when_label($e)) ?>
-      ／ <?= h($e['place']) ?> ／ <?= h(edu_organizer_label($e)) ?>
+      ／ <?= edu_is_online($e) ? '配信: ' : '会場: ' ?><?= h($e['place']) ?> ／ <?= h(edu_organizer_label($e)) ?>
       ／ 対象: <?= h(str_replace(',', '、', $e['targets'])) ?>
     </div>
     <div class="ev-meta muted">

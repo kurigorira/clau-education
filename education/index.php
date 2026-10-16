@@ -120,7 +120,7 @@ edu_layout_header($config, '予定一覧', 'list');
     </div>
     <div class="form-row">
       <label>キーワード</label>
-      <input type="text" name="q" value="<?= h($filters['q']) ?>" placeholder="研修名・主催・会場">
+      <input type="text" name="q" value="<?= h($filters['q']) ?>" placeholder="研修名・主催・会場・配信方法">
     </div>
     <button type="submit">絞り込み</button>
     <a href="index.php" class="btn secondary">解除</a>
@@ -135,7 +135,7 @@ edu_layout_header($config, '予定一覧', 'list');
     <div class="result-count"><?= $total ?>件<?= $filters['month'] !== '' ? '（' . h(date('Y年n月', strtotime($filters['month'] . '-01'))) . '）' : '' ?></div>
     <table class="data events">
       <thead>
-        <tr><th>日時</th><th>研修名</th><th>種別</th><th>主催</th><th>対象</th><th>会場</th></tr>
+        <tr><th>日時</th><th>研修名</th><th>種別</th><th>主催</th><th>対象</th><th>会場・配信方法</th></tr>
       </thead>
       <tbody>
         <?php $prevMonth = null; ?>
@@ -149,14 +149,14 @@ edu_layout_header($config, '予定一覧', 'list');
             <tr class="month-row"><td colspan="6"><?= h($ym) ?></td></tr>
           <?php endif; ?>
           <tr class="<?= $isCancelled ? 'cancelled' : '' ?> <?= $isToday ? 'today' : '' ?>">
-            <td class="nowrap" data-label="日時">
+            <td class="nowrap when" data-label="日時">
               <?php if (edu_is_online($r)): ?>
-                <span class="muted small">視聴期間</span><br>
+                <span class="when-label">視聴期間</span><br>
                 <strong><?= h(edu_date_label($r['start_at'])) ?></strong><br>
-                <span class="muted">〜<?= h(edu_date_label($r['end_at'])) ?></span>
+                <strong>〜<?= h(edu_date_label($r['end_at'])) ?></strong>
               <?php else: ?>
                 <strong><?= h(edu_date_label($r['start_at'])) ?></strong><br>
-                <span class="muted"><?= h(edu_time_label($r['start_at'], $r['end_at'])) ?></span>
+                <strong class="when-time"><?= h(edu_time_label($r['start_at'], $r['end_at'])) ?></strong>
               <?php endif; ?>
             </td>
             <td data-label="研修名">
@@ -170,7 +170,7 @@ edu_layout_header($config, '予定一覧', 'list');
             <td class="nowrap" data-label="種別"><span class="badge cat <?= h(edu_category_class($config, $r['category'])) ?>"><?= h($r['category']) ?></span></td>
             <td data-label="主催"><?= h($r['organizer']) ?></td>
             <td data-label="対象" class="small"><?= h(str_replace(',', '、', $r['targets'])) ?></td>
-            <td data-label="会場"><?= h($r['place']) ?></td>
+            <td data-label="<?= edu_is_online($r) ? '配信方法' : '会場' ?>"><?= h($r['place']) ?></td>
           </tr>
         <?php endforeach; ?>
       </tbody>

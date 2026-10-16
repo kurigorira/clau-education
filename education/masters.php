@@ -142,7 +142,7 @@ edu_layout_header($config, '選択肢の管理', 'masters');
       <div class="form-row">
         <label>名前</label>
         <input type="text" name="name" maxlength="100" placeholder="<?= h([
-            'organizer' => '例: 情報システム委員会', 'place' => '例: 6階会議室（約100名）',
+            'organizer' => '例: 情報システム委員会', 'place' => '例: 6階会議室（約100名）', 'delivery' => '例: YouTube限定公開',
             'target' => '例: 介護福祉士', 'category' => '例: e-ラーニング',
         ][$kind]) ?>">
       </div>

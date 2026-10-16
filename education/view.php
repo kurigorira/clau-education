@@ -71,7 +71,7 @@ edu_layout_header($config, $event ? $event['title'] : '予定の詳細', 'list')
       <dt>日時</dt>
       <dd class="big"><?= h(edu_when_label($event)) ?></dd>
       <dt>開催形式</dt><dd><?= h(edu_format_label($event['format'])) ?></dd>
-      <dt><?= edu_is_online($event) ? '視聴方法' : '会場' ?></dt><dd><?= h($event['place']) ?></dd>
+      <dt><?= edu_is_online($event) ? '配信方法' : '会場' ?></dt><dd><?= h($event['place']) ?></dd>
       <dt>主催</dt><dd><?= h(edu_organizer_label($event)) ?></dd>
       <dt>対象</dt><dd><?= h(str_replace(',', '、', $event['targets'])) ?></dd>
       <dt>定員</dt><dd><?= $event['capacity'] !== null ? (int)$event['capacity'] . '名' : '制限なし' ?></dd>

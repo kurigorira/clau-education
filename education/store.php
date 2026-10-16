@@ -147,7 +147,8 @@ function edu_master_kinds(): array
 {
     return [
         'organizer' => '主催（委員会・本部・部署）',
-        'place'     => '会場',
+        'place'     => '会場（会場で開催）',
+        'delivery'  => '配信方法（オンライン視聴）',
         'target'    => '対象職種',
         'category'  => '種別',
     ];
@@ -169,7 +170,7 @@ function edu_load_masters(PDO $pdo, array &$config): void
             foreach ($names as $n) { $seed[] = ['organizer', (string)$group, (string)$n]; }
         }
     }
-    foreach (['place' => 'places', 'target' => 'targets', 'category' => 'categories'] as $kind => $key) {
+    foreach (['place' => 'places', 'delivery' => 'deliveries', 'target' => 'targets', 'category' => 'categories'] as $kind => $key) {
         if (empty($has[$kind])) {
             foreach ($config[$key] as $n) { $seed[] = [$kind, '', (string)$n]; }
         }
@@ -183,7 +184,7 @@ function edu_load_masters(PDO $pdo, array &$config): void
     }
 
     $organizers = [];
-    $lists = ['place' => [], 'target' => [], 'category' => []];
+    $lists = ['place' => [], 'delivery' => [], 'target' => [], 'category' => []];
     foreach ($rows as $r) {
         if (!(int)$r['active']) { continue; }
         if ($r['kind'] === 'organizer') {
@@ -196,6 +197,7 @@ function edu_load_masters(PDO $pdo, array &$config): void
     $config['places']     = $lists['place'];
     $config['targets']    = $lists['target'];
     $config['categories'] = $lists['category'];
+    $config['deliveries'] = $lists['delivery'];
 }
 
 /** マスタ一覧（管理画面用・使用停止も含む） */

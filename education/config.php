@@ -56,9 +56,14 @@ $config = [
         '診療放射線技師', 'リハビリ職', '管理栄養士', '臨床工学技士', '事務職', '新入職員',
     ],
 
-    // 会場の候補（入力欄の候補として表示。自由入力も可）
+    // 会場の候補（会場で開催する研修の入力欄に候補として表示。自由入力も可）
+    // 配信方法の選択肢（オンライン視聴の研修で選ぶ）
+    'deliveries' => [
+        '院内受講管理システム（CHATIS）', 'GAKKEN',
+    ],
+
     'places' => [
-        '6階会議室（約100名）', '講堂', '大会議室', '小会議室', '各病棟', 'リハビリ室', 'オンライン（院内配信）',
+        '6階会議室（約100名）', '講堂', '大会議室', '小会議室', '各病棟', 'リハビリ室',
     ],
 
     // 管理画面のログイン失敗がこの回数に達したら、lock_minutes 分ログインを受け付けない（IP単位）
@@ -75,7 +80,7 @@ $local = __DIR__ . '/config.local.php';
 if (is_file($local)) {
     $override = require $local;
     if (is_array($override)) {
-        foreach (['organizers', 'categories', 'targets', 'places'] as $listKey) {
+        foreach (['organizers', 'categories', 'targets', 'places', 'deliveries'] as $listKey) {
             if (isset($override[$listKey]) && is_array($override[$listKey])) {
                 $config[$listKey] = $override[$listKey];
                 unset($override[$listKey]);
