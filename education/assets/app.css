@@ -15,7 +15,7 @@ input, select, textarea, button { font-family: inherit; }
 .topbar .nav a:hover { color: #fff; }
 .topbar .nav a.active { color: #fff; font-weight: 700; border-bottom: 2px solid #fff; }
 
-.container { max-width: 1080px; margin: 20px auto; padding: 0 16px; }
+.container { max-width: 1080px; margin: 20px auto 40px; padding: 0 16px; }
 
 /* カード・サマリ */
 .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -98,7 +98,6 @@ ul.attachments .size { color: #6b7785; font-size: 12px; margin-left: 8px; }
         padding: 4px 12px; font-size: 13px; text-decoration: none; color: #0d3b66; }
 .pager span.current { background: #0d3b66; color: #fff; border-color: #0d3b66; }
 
-.foot { text-align: center; color: #8a94a3; font-size: 12px; padding: 24px 0; }
 
 /* ===== 研修スケジュール用 追加 ===== */
 .topbar h1 a { color: #fff; text-decoration: none; }
@@ -258,6 +257,6 @@ form.inline select { padding: 5px 6px; border: 1px solid #c9d3e0; border-radius:
 @media print {
   body { background: #fff; }
   .topbar { color: #000; background: #fff; border-bottom: 2px solid #000; }
-  .topbar .nav, .foot, .filter-form, button, .btn, .actions, .cal-head a { display: none; }
+  .topbar .nav, .filter-form, button, .btn, .actions, .cal-head a { display: none; }
   table.calendar td { height: 90px; }
 }

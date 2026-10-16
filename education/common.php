@@ -301,7 +301,6 @@ function edu_layout_footer(array $config): void
 {
     ?>
 </main>
-<footer class="foot"><?= h($config['hospital']) ?> <?= h($config['title']) ?>（院内イントラネット運用）</footer>
 </body>
 </html>
 <?php
