@@ -243,7 +243,34 @@ table.data td.when .when-time { color: #0d3b66; }
 table.data td.when .when-label { font-size: 12px; font-weight: 700; color: #075985; }
 table.data tr.cancelled td.when, table.data tr.cancelled td.when .when-time { color: #5a6170; }
 
+/* トップページ：左側に担当者マニュアル */
+.container.wide { max-width: 1360px; }
+.with-side { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; align-items: start; }
+.side-manual { background: #fff; border: 2px solid #f3c4d3; border-radius: 10px; padding: 16px 18px;
+               position: sticky; top: 12px; }
+.side-manual h2 { margin: 0 0 8px; font-size: 18px; color: #0d3b66; border-bottom: 2px solid #f3c4d3; padding-bottom: 6px; }
+.side-lead { font-size: 13px; margin: 0 0 10px; }
+.side-steps { margin: 0 0 12px; padding-left: 22px; font-size: 14px; }
+.side-steps li { margin-bottom: 8px; }
+.side-steps a { color: #0d3b66; }
+.side-steps span { display: block; font-size: 12px; color: #3d4450; line-height: 1.5; }
+.side-tip { background: #fff5f8; border: 1px solid #f3c4d3; border-radius: 8px; padding: 8px 10px;
+            font-size: 12px; margin-bottom: 8px; line-height: 1.5; }
+.side-btn { display: block; text-align: center; margin: 12px 0 8px; }
+.side-more { display: block; text-align: center; font-size: 13px; color: #0d3b66; font-weight: 700; }
+
+/* 担当者マニュアル */
+.manual h3 { margin: 22px 0 8px; font-size: 16px; color: #0d3b66; border-left: 4px solid #e88aa8; padding-left: 8px; }
+.manual ol, .manual ul { padding-left: 24px; }
+.manual li { margin-bottom: 6px; }
+.manual ol.flow { background: #fff5f8; border: 1px solid #f3c4d3; border-radius: 8px; padding: 10px 14px 10px 36px; }
+.manual dl.faq { grid-template-columns: 220px 1fr; }
+
 /* スマホ幅：一覧はカード表示、カレンダーは縦並び */
+@media (max-width: 900px) {
+  .with-side { grid-template-columns: 1fr; }
+  .side-manual { position: static; order: 2; }
+}
 @media (max-width: 700px) {
   .container { padding: 0 12px; }
   .filter-form .form-row, .filter-form select, .filter-form input { width: 100%; }
@@ -268,6 +295,6 @@ table.data tr.cancelled td.when, table.data tr.cancelled td.when .when-time { co
 @media print {
   body { background: #fff; }
   .topbar { color: #000; background: #fff; border-bottom: 2px solid #000; }
-  .topbar .nav, .filter-form, button, .btn, .actions, .cal-head a { display: none; }
+  .topbar .nav, .no-print, .filter-form, button, .btn, .actions, .cal-head a { display: none; }
   table.calendar td { height: 90px; }
 }

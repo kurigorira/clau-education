@@ -256,13 +256,14 @@ function edu_fiscal_year(int $ts): int
 /* ---------------- レイアウト ---------------- */
 
 /** ページ共通ヘッダ（$active: 'list' | 'calendar' | 'new' | 'admin' | 'masters' | 'accounts'） */
-function edu_layout_header(array $config, string $subtitle, string $active = ''): void
+function edu_layout_header(array $config, string $subtitle, string $active = '', bool $wide = false): void
 {
     $title = $config['title'];
     $nav = [
         'list'     => ['index.php', '予定一覧'],
         'calendar' => ['calendar.php', 'カレンダー'],
         'new'      => ['new.php', '予定を登録'],
+        'manual'   => ['manual.php', '担当者マニュアル'],
         'admin'    => ['admin.php', edu_is_admin() ? '承認・管理' : '管理'],
     ];
     if (edu_is_admin()) {
@@ -287,7 +288,7 @@ function edu_layout_header(array $config, string $subtitle, string $active = '')
     <?php endforeach; ?>
   </nav>
 </header>
-<main class="container">
+<main class="container<?= $wide ? ' wide' : '' ?>">
 <?php
     $flash = edu_flash_take();
     if ($flash !== null) {

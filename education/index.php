@@ -61,8 +61,33 @@ $pageUrl = function (int $p) use ($filters): string {
 
 $today = date('Y-m-d');
 
-edu_layout_header($config, '予定一覧', 'list');
+edu_layout_header($config, '予定一覧', 'list', true);
 ?>
+
+<div class="with-side">
+<aside class="side-manual">
+  <h2>担当者マニュアル</h2>
+  <p class="side-lead">研修・勉強会の担当者は、<strong>どなたでも</strong>予定を登録できます（ログイン不要）。</p>
+  <ol class="side-steps">
+    <li><a href="manual.php#register"><strong>予定を登録</strong></a>
+      <span>研修名・主催・対象を入力</span></li>
+    <li><a href="manual.php#register"><strong>開催形式を選ぶ</strong></a>
+      <span>会場：日時と会場<br>オンライン：視聴期間と配信方法（CHATIS／GAKKEN）</span></li>
+    <li><a href="manual.php#register"><strong>編集用パスワードを決める</strong></a>
+      <span>登録番号と一緒に控えておく</span></li>
+    <li><a href="manual.php#approve"><strong>管理者が承認</strong></a>
+      <span>承認後に一覧・カレンダーへ掲載</span></li>
+    <li><a href="manual.php#edit"><strong>変更・中止</strong></a>
+      <span>研修の詳細 →「変更・中止（担当者用）」</span></li>
+  </ol>
+  <div class="side-tip"><strong>前回と同じ研修は</strong><br>
+    登録画面の「過去の研修から複製」で、日付だけ入れ直せます。</div>
+  <div class="side-tip"><strong>パスワードを忘れたら</strong><br>
+    登録番号を管理者（教育委員会 等）に伝えて再設定を依頼してください。</div>
+  <a href="new.php" class="btn side-btn">＋ 予定を登録する</a>
+  <a href="manual.php" class="side-more">マニュアルを詳しく見る（印刷用）→</a>
+</aside>
+<div class="main-col">
 
 <?php if ($fatal !== null): ?>
   <?php edu_db_error($fatal); ?>
@@ -75,7 +100,6 @@ edu_layout_header($config, '予定一覧', 'list');
     <?php if (edu_is_admin() && $counts['pending'] > 0): ?>
       <a class="card alert" href="admin.php"><div class="label">承認待ち</div><div class="value"><?= $counts['pending'] ?><small>件</small></div></a>
     <?php endif; ?>
-    <a class="card cta" href="new.php"><div class="label">担当者の方へ</div><div class="value-sm">＋ 予定を登録する</div></a>
   </div>
 
   <form method="get" action="index.php" class="filter-form">
@@ -190,5 +214,8 @@ edu_layout_header($config, '予定一覧', 'list');
   <?php endif; ?>
 
 <?php endif; ?>
+
+</div><!-- /.main-col -->
+</div><!-- /.with-side -->
 
 <?php edu_layout_footer($config); ?>
