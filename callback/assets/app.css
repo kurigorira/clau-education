@@ -1,8 +1,10 @@
 /* 外線折り返し連絡板（既存の院内アプリと同じ視覚言語・このアプリ単体で完結） */
 * { box-sizing: border-box; }
-/* 背景は薄いオレンジ・基調色はオレンジ（研修スケジュールの桃色と区別）、文字はゴシック体（電子カルテ端末の Windows に入っているものを優先） */
+/* 背景は薄いオレンジ・基調色はオレンジ（研修スケジュールの桃色と区別）。
+   文字は丸ゴシック（Office 付属の HG丸ｺﾞｼｯｸM-PRO）。無い端末は Windows 標準のゴシック体 */
 body { margin: 0;
-       font-family: "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "YuGothic", "Meiryo",
+       font-family: "HG丸ｺﾞｼｯｸM-PRO", "HGMaruGothicMPRO", "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN",
+                    "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "YuGothic", "Meiryo",
                     "Hiragino Kaku Gothic ProN", "MS PGothic", sans-serif;
        font-weight: 500; color: #111111; background: #fff6ec; line-height: 1.6; }
 input, select, textarea, button { font-family: inherit; }
