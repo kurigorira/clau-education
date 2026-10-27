@@ -3,7 +3,6 @@
  * デモ用のサンプル掲示を登録する。操作説明・試験運用用。
  *   php tools/demo_data.php            … 折り返し待ち・連絡がついた・期限切れの掲示を登録
  *   php tools/demo_data.php --clear    … 先にデモ登録分（担当者名が「デモ」で始まるもの）を削除してから登録
- * デモ掲示の簡易パスワードはすべて「demo」。
  * 本番データには使わないこと。コマンドラインからのみ実行できる。
  */
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit('Forbidden'); }
@@ -20,7 +19,6 @@ if (in_array('--clear', $argv, true)) {
     echo "デモ掲示を {$n} 件削除しました\n";
 }
 
-$hash = password_hash('demo', PASSWORD_DEFAULT);
 // [何分前に電話, 掲示時間, 担当者, 部署, 内線, 不在時, 区分, 相手名, 下4桁, 用件, 状態]
 $rows = [
     [12,   24, 'デモ 佐藤', '新3階病棟', '3312',          '新3階病棟 詰所 内線3300', '患者家族', '山田様', '4821', '退院日程のご相談', 'open'],
@@ -34,9 +32,9 @@ $rows = [
 foreach ($rows as [$min, $hours, $name, $dept, $ext, $alt, $type, $party, $last4, $purpose, $state]) {
     $pdo->prepare(
         'INSERT INTO cb_posts (caller_name, caller_dept, caller_ext, alt_contact, party_type, party_name,
-                               phone_last4, purpose, called_at, expires_at, edit_pass_hash)
-         VALUES (?,?,?,?,?,?,?,?, NOW() - INTERVAL ? MINUTE, NOW() - INTERVAL ? MINUTE + INTERVAL ? HOUR, ?)'
-    )->execute([$name, $dept, $ext, $alt, $type, $party, $last4, $purpose, $min, $min, $hours, $hash]);
+                               phone_last4, purpose, called_at, expires_at)
+         VALUES (?,?,?,?,?,?,?,?, NOW() - INTERVAL ? MINUTE, NOW() - INTERVAL ? MINUTE + INTERVAL ? HOUR)'
+    )->execute([$name, $dept, $ext, $alt, $type, $party, $last4, $purpose, $min, $min, $hours]);
     $id = (int)$pdo->lastInsertId();
     cb_log($pdo, $id, 'create', $name, "掲示期間 {$hours}時間");
     if ($state === 'done') {
@@ -47,4 +45,4 @@ foreach ($rows as [$min, $hours, $name, $dept, $ext, $alt, $type, $party, $last4
 $first = (int)$pdo->query("SELECT id FROM cb_posts WHERE caller_name = 'デモ 田中' ORDER BY id DESC LIMIT 1")->fetchColumn();
 cb_receive($pdo, $first, 'デモ 交換', '総合受付：担当者不在のため伝言、15時に再度かけるとのこと');
 
-echo count($rows) . " 件のデモ掲示を登録しました（簡易パスワード: demo）\n";
+echo count($rows) . " 件のデモ掲示を登録しました\n";

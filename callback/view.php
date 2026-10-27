@@ -2,7 +2,7 @@
 /**
  * 掲示の詳細。
  *  - 折り返しを受けた職員（誰でも）… 「折り返しを受けた記録」を残す（掲示は閉じない）
- *  - 掲示した本人（簡易パスワード）・管理者 … 連絡がついた／取り下げ／延長・再掲示
+ *  - 掲示した本人など（誰でも。操作した人の氏名を記録する）・管理者 … 連絡がついた／取り下げ／延長・再掲示
  */
 define('CB_APP', true);
 $config = require __DIR__ . '/config.php';
@@ -23,6 +23,7 @@ try {
 
 $recv = ['recv_name' => '', 'recv_dept' => '', 'recv_dept_other' => '', 'recv_memo' => ''];
 $note = '';
+$actor = '';
 
 if ($post !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     cb_csrf_check();
@@ -50,26 +51,15 @@ if ($post !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
         } elseif (in_array($act, ['done', 'withdraw', 'reopen'], true)) {
-            // ---- 本人（簡易パスワード）または管理者の操作 ----
-            $note = trim(mb_convert_kana((string)($_POST['note'] ?? ''), 's'));
-            $authorized = cb_is_admin();
-            if (!$authorized) {
-                $fails = cb_fail_count($pdo, 'unlock_fail', cb_client_ip(), (int)$config['lock_minutes']);
-                if ($fails >= (int)$config['login_max_fail']) {
-                    $errors[] = 'パスワードの誤りが続いたため、' . (int)$config['lock_minutes'] . '分間ロックしています。';
-                } elseif (password_verify((string)($_POST['edit_pass'] ?? ''), $post['edit_pass_hash'])) {
-                    $authorized = true;
-                } else {
-                    cb_log($pdo, $id, 'unlock_fail', '', '簡易パスワード誤り');
-                    $errors[] = '簡易パスワードが違います。忘れた場合は管理者に依頼してください。';
-                }
-            }
-            if ($authorized && mb_strlen($note) > 100) {
+            // ---- 誰でも操作できる（操作した人の氏名を記録する。管理者はログイン名） ----
+            $note  = trim(mb_convert_kana((string)($_POST['note'] ?? ''), 's'));
+            $actor = trim(mb_convert_kana((string)($_POST['actor'] ?? ''), 's'));
+            if (!cb_is_admin() && ($actor === '' || mb_strlen($actor) > 32)) {
+                $errors[] = '操作する方の氏名を32文字以内で入力してください。';
+            } elseif (mb_strlen($note) > 100) {
                 $errors[] = 'メモは100文字以内で入力してください。';
-                $authorized = false;
-            }
-            if ($authorized) {
-                $who = cb_is_admin() ? cb_admin_name() . '（管理者）' : $post['caller_name'];
+            } else {
+                $who = cb_is_admin() ? cb_admin_name() . '（管理者）' : $actor;
                 if ($act === 'reopen') {
                     $hours = (int)($_POST['hours'] ?? 0);
                     if (!in_array($hours, $hoursChoices, true)) {
@@ -166,18 +156,19 @@ $state = cb_state($post);
 <?php endif; ?>
 
 <div class="panel">
-  <h2>掲示した方（<?= h($post['caller_name']) ?>）の操作</h2>
+  <h2>連絡がついた・取り下げ・延長</h2>
+  <p class="muted small">掲示した方（<?= h($post['caller_name']) ?>）のほか、代わりに対応した方も操作できます。操作した方の氏名が記録に残ります。</p>
   <form method="post" action="view.php?id=<?= (int)$post['id'] ?>">
     <?= cb_csrf_field() ?>
     <div class="form-grid">
       <?php if (!cb_is_admin()): ?>
-        <div class="form-row"><label for="edit_pass">簡易パスワード</label>
-          <input type="password" id="edit_pass" name="edit_pass" autocomplete="current-password"></div>
+        <div class="form-row"><label for="actor">操作する方の氏名<span class="required">必須</span></label>
+          <input type="text" id="actor" name="actor" value="<?= h($actor) ?>" maxlength="32"></div>
       <?php endif; ?>
       <div class="form-row"><label for="note">メモ（任意）</label>
         <input type="text" id="note" name="note" value="<?= h($note) ?>" maxlength="100" placeholder="例：折り返しあり、説明済み"></div>
     </div>
-    <?php if (cb_is_admin()): ?><p class="muted small">管理者としてログイン中のため、パスワードなしで操作できます。</p><?php endif; ?>
+    <?php if (cb_is_admin()): ?><p class="muted small">管理者としてログイン中のため、操作者は「<?= h(cb_admin_name()) ?>（管理者）」として記録されます。</p><?php endif; ?>
     <div class="actions">
       <?php if ($state === 'open'): ?>
         <button type="submit" name="act" value="done">連絡がついた（掲示を終える）</button>

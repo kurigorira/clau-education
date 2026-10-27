@@ -3,7 +3,7 @@
  * 掲示する（ログイン不要）。
  * 外線をかけて相手に繋がらなかった職員が、自分の氏名・部署・内線と、相手先の概要を掲示する。
  * 相手先の情報は最小限（区分・姓・電話番号の下4桁・用件の概略）にとどめる。
- * 掲示時に決める簡易パスワードで、後から本人が「連絡がついた」「取り下げ」「延長」にできる。
+ * 「連絡がついた」「取り下げ」「延長」は、詳細画面から誰でも（操作した人の氏名を記録して）できる。
  */
 define('CB_APP', true);
 $config = require __DIR__ . '/config.php';
@@ -35,7 +35,6 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['phone_last4'] = mb_convert_kana($old['phone_last4'], 'n');
     $old['caller_ext']  = mb_convert_kana($old['caller_ext'], 'a');
     $old['hours'] = (int)$old['hours'];
-    $pass = (string)($_POST['edit_pass'] ?? '');
 
     $dept = cb_dept_read($config, $_POST, 'caller_dept', '所属部署');
     if ($dept['error'] !== null) { $errors[] = $dept['error']; }
@@ -78,17 +77,14 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($old['hours'], $hoursChoices, true)) {
         $errors[] = '掲示期間を選んでください。';
     }
-    if (mb_strlen($pass) < 4) {
-        $errors[] = '簡易パスワードは4文字以上で入力してください。';
-    }
 
     if (!$errors) {
         try {
             $data = $old;
             $data['called_at'] = date('Y-m-d H:i:s', $calledTs);
             $data['caller_dept'] = $dept['value'];
-            $id = cb_create($pdo, $data, $old['hours'], password_hash($pass, PASSWORD_DEFAULT));
-            cb_flash_set('掲示しました。連絡がついたら、この画面で簡易パスワードを入れて「連絡がついた」にしてください。');
+            $id = cb_create($pdo, $data, $old['hours']);
+            cb_flash_set('掲示しました。連絡がついたら、この画面の「連絡がついた」を押してください。');
             header('Location: view.php?id=' . $id);
             exit;
         } catch (Throwable $e) {
@@ -182,10 +178,6 @@ if ($fatal !== null) {
             <?= $hr % 24 === 0 ? ($hr / 24) . '日（' . $hr . '時間）' : $hr . '時間' ?></label>
         <?php endforeach; ?>
       </div>
-    </div>
-    <div class="form-row">
-      <label for="edit_pass">簡易パスワード<span class="required">必須</span><span class="hint">4文字以上。「連絡がついた」「取り下げ」「延長」のときに使います</span></label>
-      <input type="password" id="edit_pass" name="edit_pass" minlength="4" required autocomplete="new-password">
     </div>
   </fieldset>
 

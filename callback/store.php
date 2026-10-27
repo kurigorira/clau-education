@@ -5,7 +5,7 @@
  * テーブルは初回に自動作成する。
  *
  * cb_posts  … 掲示（外線をかけた職員・相手先の概要・状態・期限）
- * cb_logs   … 操作履歴（掲示・折り返し受電の記録・完了・取り下げ・再掲示・削除・パスワード誤り）
+ * cb_logs   … 操作履歴（掲示・折り返し受電の記録・完了・取り下げ・再掲示・削除・管理者ログイン失敗）
  * cb_admins … 管理者アカウント。管理画面で追加・パスワード変更する
  * cb_depts  … 部署マスタ（掲示する人・折り返しを受けた人の部署の選択肢）。管理画面で編集する
  */
@@ -49,7 +49,6 @@ function cb_ensure_tables(PDO $pdo): void
            closed_note    VARCHAR(200) NOT NULL DEFAULT \'\',
            closed_by      VARCHAR(64)  NOT NULL DEFAULT \'\',
            closed_at      DATETIME     NULL,
-           edit_pass_hash VARCHAR(255) NOT NULL,
            created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
            updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
            PRIMARY KEY (id),
@@ -58,6 +57,10 @@ function cb_ensure_tables(PDO $pdo): void
            KEY idx_last4 (phone_last4)
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    // 以前の版の簡易パスワード列は使わなくなったので削除する
+    if ($pdo->query("SHOW COLUMNS FROM cb_posts LIKE 'edit_pass_hash'")->fetch()) {
+        $pdo->exec('ALTER TABLE cb_posts DROP COLUMN edit_pass_hash');
+    }
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS cb_logs (
            id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -284,7 +287,7 @@ function cb_receipts_for(PDO $pdo, array $postIds): array
 
 /**
  * 指定IPの直近 $minutes 分のパスワード誤り回数。
- * $action: 'login_fail'（管理者ログイン） / 'unlock_fail'（掲示の簡易パスワード）
+ * $action: 'login_fail'（管理者ログイン）
  */
 function cb_fail_count(PDO $pdo, string $action, string $ip, int $minutes): int
 {
@@ -377,15 +380,15 @@ function cb_find(PDO $pdo, int $id): ?array
 }
 
 /** 掲示を登録し、IDを返す */
-function cb_create(PDO $pdo, array $d, int $hours, string $passHash): int
+function cb_create(PDO $pdo, array $d, int $hours): int
 {
     $pdo->prepare(
         'INSERT INTO cb_posts (caller_name, caller_dept, caller_ext, alt_contact, party_type, party_name,
-                               phone_last4, purpose, called_at, expires_at, edit_pass_hash)
-         VALUES (?,?,?,?,?,?,?,?,?, NOW() + INTERVAL ? HOUR, ?)'
+                               phone_last4, purpose, called_at, expires_at)
+         VALUES (?,?,?,?,?,?,?,?,?, NOW() + INTERVAL ? HOUR)'
     )->execute([
         $d['caller_name'], $d['caller_dept'], $d['caller_ext'], $d['alt_contact'], $d['party_type'],
-        $d['party_name'], $d['phone_last4'], $d['purpose'], $d['called_at'], $hours, $passHash,
+        $d['party_name'], $d['phone_last4'], $d['purpose'], $d['called_at'], $hours,
     ]);
     $id = (int)$pdo->lastInsertId();
     cb_log($pdo, $id, 'create', $d['caller_name'], "掲示期間 {$hours}時間");
