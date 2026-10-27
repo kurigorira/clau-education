@@ -1,7 +1,7 @@
 <?php
 /**
  * 外線折り返し連絡板の動作診断。ブラウザで callback/check.php を開くと、
- * [1] PHP環境 [2] MySQL接続・テーブル作成 [3] 管理者アカウント [4] 掲示件数 を順に確認します。
+ * [1] PHP環境 [2] MySQL接続・テーブル作成 [3] 管理者アカウント・部署マスタ [4] 掲示件数 を順に確認します。
  * 正常稼働を確認したら削除して構いません。
  */
 define('CB_APP', true);
@@ -41,7 +41,7 @@ $pdo = null;
 try {
     $pdo = cb_mysql($config);
     echo "<li>接続・テーブル自動作成：$ok</li>";
-    foreach (['cb_posts', 'cb_logs', 'cb_admins'] as $t) {
+    foreach (['cb_posts', 'cb_logs', 'cb_admins', 'cb_depts'] as $t) {
         $exists = (bool)$pdo->query("SHOW TABLES LIKE " . $pdo->quote($t))->fetch();
         echo "<li>テーブル <code>$t</code>：" . ($exists ? $ok : $ng('作成できませんでした（CREATE権限を確認）')) . "</li>";
     }
@@ -61,6 +61,9 @@ if ($pdo !== null) {
     $n = cb_admin_count($pdo);
     echo "<li>有効な管理者：{$n} 人" . ($n > 0 ? $ok
         : $warn('まだいません。admin.php を開いて「初回設定」で最初の管理者を作成してください')) . "</li>";
+    $n = count($config['departments']);
+    echo "<li>部署マスタ：使用中 {$n} 件" . ($n > 0 ? $ok : $warn('管理画面の「部署マスタ」で追加してください'))
+       . (in_array($config['dept_other'], $config['departments'], true) ? '' : $warn("「{$config['dept_other']}」がありません（自由入力ができません）")) . "</li>";
 }
 echo "<li>config.local.php：" . (is_file(__DIR__ . '/config.local.php') ? $ok : $warn('未作成（config.php の既定値で動作中）')) . "</li>";
 echo "<li>掲示期間の選択肢：" . h(implode('・', $config['expire_hours'])) . " 時間（既定 " . (int)$config['expire_default_hours'] . " 時間）</li>";

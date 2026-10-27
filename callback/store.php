@@ -7,10 +7,11 @@
  * cb_posts  … 掲示（外線をかけた職員・相手先の概要・状態・期限）
  * cb_logs   … 操作履歴（掲示・折り返し受電の記録・完了・取り下げ・再掲示・削除・パスワード誤り）
  * cb_admins … 管理者アカウント。管理画面で追加・パスワード変更する
+ * cb_depts  … 部署マスタ（掲示する人・折り返しを受けた人の部署の選択肢）。管理画面で編集する
  */
 if (!defined('CB_APP')) { http_response_code(403); exit('Forbidden'); }
 
-function cb_mysql(array $config): PDO
+function cb_mysql(array &$config): PDO
 {
     $m = $config['mysql'];
     $dsn = sprintf(
@@ -24,6 +25,7 @@ function cb_mysql(array $config): PDO
     ]);
     $pdo->exec("SET time_zone = '+09:00'");
     cb_ensure_tables($pdo);
+    cb_load_depts($pdo, $config);
     cb_refresh_admin($pdo);
     return $pdo;
 }
@@ -71,6 +73,20 @@ function cb_ensure_tables(PDO $pdo): void
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
     $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS cb_depts (
+           id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+           code       VARCHAR(8)   NOT NULL,
+           name       VARCHAR(64)  NOT NULL,
+           sort_order INT          NOT NULL DEFAULT 0,
+           active     TINYINT      NOT NULL DEFAULT 1,
+           created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           PRIMARY KEY (id),
+           UNIQUE KEY uq_code (code),
+           UNIQUE KEY uq_name (name),
+           KEY idx_order (active, sort_order)
+         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+    );
+    $pdo->exec(
         'CREATE TABLE IF NOT EXISTS cb_admins (
            id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
            login_id      VARCHAR(32)  NOT NULL,
@@ -83,6 +99,82 @@ function cb_ensure_tables(PDO $pdo): void
            UNIQUE KEY uq_login (login_id)
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+}
+
+/* ---------------- 部署マスタ ---------------- */
+
+/**
+ * DB の部署マスタを $config['departments']（コード => 名称、有効なもののみ・並び順）に反映する。
+ * DB が空なら config.php / config.local.php の値を初期値として投入する。
+ */
+function cb_load_depts(PDO $pdo, array &$config): void
+{
+    if ((int)$pdo->query('SELECT COUNT(*) FROM cb_depts')->fetchColumn() === 0) {
+        $ins = $pdo->prepare('INSERT IGNORE INTO cb_depts (code, name, sort_order) VALUES (?,?,?)');
+        $i = 0;
+        foreach ($config['departments'] as $code => $name) {
+            $ins->execute([(string)$code, (string)$name, ++$i * 10]);
+        }
+    }
+    $config['departments'] = [];
+    foreach ($pdo->query('SELECT code, name FROM cb_depts WHERE active = 1 ORDER BY sort_order, id') as $r) {
+        $config['departments'][$r['code']] = $r['name'];
+    }
+}
+
+/** 部署一覧（管理画面用・使用停止も含む） */
+function cb_dept_rows(PDO $pdo): array
+{
+    return $pdo->query('SELECT * FROM cb_depts ORDER BY sort_order, id')->fetchAll();
+}
+
+function cb_dept_find(PDO $pdo, int $id): ?array
+{
+    $st = $pdo->prepare('SELECT * FROM cb_depts WHERE id = ?');
+    $st->execute([$id]);
+    return $st->fetch() ?: null;
+}
+
+/** 同じコードか同じ名称の部署がほかにあるか */
+function cb_dept_exists(PDO $pdo, string $code, string $name, int $exceptId = 0): bool
+{
+    $st = $pdo->prepare('SELECT COUNT(*) FROM cb_depts WHERE (code = ? OR name = ?) AND id <> ?');
+    $st->execute([$code, $name, $exceptId]);
+    return (int)$st->fetchColumn() > 0;
+}
+
+/** 部署を末尾に追加する（コード・名称が重複していれば false） */
+function cb_dept_add(PDO $pdo, string $code, string $name): bool
+{
+    if (cb_dept_exists($pdo, $code, $name)) { return false; }
+    $order = (int)$pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM cb_depts')->fetchColumn();
+    $pdo->prepare('INSERT INTO cb_depts (code, name, sort_order) VALUES (?,?,?)')->execute([$code, $name, $order]);
+    return true;
+}
+
+/** コード・名称を変更する（重複があれば false）。登録済みの掲示の表記は変えない */
+function cb_dept_rename(PDO $pdo, int $id, string $code, string $name): bool
+{
+    if (cb_dept_exists($pdo, $code, $name, $id)) { return false; }
+    $pdo->prepare('UPDATE cb_depts SET code = ?, name = ? WHERE id = ?')->execute([$code, $name, $id]);
+    return true;
+}
+
+function cb_dept_set_active(PDO $pdo, int $id, bool $active): void
+{
+    $pdo->prepare('UPDATE cb_depts SET active = ? WHERE id = ?')->execute([$active ? 1 : 0, $id]);
+}
+
+/** 並び順を1つ上／下へ */
+function cb_dept_move(PDO $pdo, int $id, int $dir): void
+{
+    $ids = array_map(fn($r) => (int)$r['id'], cb_dept_rows($pdo));
+    $i = array_search($id, $ids, true);
+    $j = $i === false ? false : $i + $dir;
+    if ($j === false || $j < 0 || $j >= count($ids)) { return; }
+    [$ids[$i], $ids[$j]] = [$ids[$j], $ids[$i]];
+    $up = $pdo->prepare('UPDATE cb_depts SET sort_order = ? WHERE id = ?');
+    foreach ($ids as $k => $did) { $up->execute([($k + 1) * 10, $did]); }
 }
 
 /* ---------------- 管理者アカウント ---------------- */

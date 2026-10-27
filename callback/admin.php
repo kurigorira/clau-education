@@ -4,6 +4,7 @@
  * 管理者が1人もいない間だけ「初回設定」で最初の管理者を作成できる。
  *  - 掲示の削除（誤って個人情報を書いた掲示など）
  *  - 管理者ログイン中は、詳細画面で簡易パスワードなしに「連絡がついた」「取り下げ」「延長」ができる
+ *  - 部署マスタの追加・名称変更・並び替え・使用停止（掲示・受電記録の部署の選択肢）
  *  - 管理者アカウントの追加・パスワード再設定・無効化
  */
 define('CB_APP', true);
@@ -133,6 +134,48 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     break;
 
+                case 'dept_add':
+                case 'dept_edit':
+                    $code = trim(mb_convert_kana((string)($_POST['code'] ?? ''), 'as'));
+                    $name = trim(mb_convert_kana((string)($_POST['name'] ?? ''), 'KVs'));
+                    $d    = $act === 'dept_edit' ? cb_dept_find($pdo, (int)($_POST['dept_id'] ?? 0)) : null;
+                    if ($act === 'dept_edit' && $d === null) {
+                        $errors[] = '対象の部署が見つかりません。';
+                    } elseif (!preg_match('/^[0-9A-Za-z]{1,8}$/', $code)) {
+                        $errors[] = '部署コードは半角英数字8文字以内で入力してください。';
+                    } elseif ($name === '' || mb_strlen($name) > 64) {
+                        $errors[] = '部署名を64文字以内で入力してください。';
+                    } elseif ($d !== null && $d['name'] === $config['dept_other'] && $name !== $d['name']) {
+                        $errors[] = "「{$config['dept_other']}」は自由入力の受け皿のため、名称を変えられません（コードは変更できます）。";
+                    } elseif ($act === 'dept_add' ? !cb_dept_add($pdo, $code, $name) : !cb_dept_rename($pdo, (int)$d['id'], $code, $name)) {
+                        $errors[] = '同じコードまたは同じ名称の部署がすでにあります（使用停止中の場合は「再開」してください）。';
+                    } elseif ($act === 'dept_add') {
+                        cb_log($pdo, null, 'dept_add', $who, "部署 {$code} {$name} を追加");
+                        cb_flash_set("部署「{$name}」を追加しました。");
+                    } else {
+                        cb_log($pdo, null, 'dept_edit', $who, "部署 {$d['code']} {$d['name']} → {$code} {$name}");
+                        cb_flash_set('部署を変更しました。登録済みの掲示の表記は変わりません。');
+                    }
+                    break;
+
+                case 'dept_up':
+                case 'dept_down':
+                case 'dept_disable':
+                case 'dept_enable':
+                    $d = cb_dept_find($pdo, (int)($_POST['dept_id'] ?? 0));
+                    if ($d === null) {
+                        $errors[] = '対象の部署が見つかりません。';
+                    } elseif ($act === 'dept_up' || $act === 'dept_down') {
+                        cb_dept_move($pdo, (int)$d['id'], $act === 'dept_up' ? -1 : 1);
+                    } elseif ($act === 'dept_disable' && $d['name'] === $config['dept_other']) {
+                        $errors[] = "「{$config['dept_other']}」は使用停止にできません。";
+                    } else {
+                        cb_dept_set_active($pdo, (int)$d['id'], $act === 'dept_enable');
+                        cb_log($pdo, null, $act, $who, "部署 {$d['code']} {$d['name']}");
+                        cb_flash_set($act === 'dept_enable' ? "「{$d['name']}」を再開しました。" : "「{$d['name']}」を使用停止にしました（選択肢から外れます）。");
+                    }
+                    break;
+
                 default:
                     $errors[] = '不明な操作です。';
             }
@@ -150,6 +193,7 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $recent = [];
 $admins = [];
+$depts = [];
 $hasAdmin = true;
 if ($fatal === null) {
     try {
@@ -157,6 +201,7 @@ if ($fatal === null) {
         if (cb_is_admin()) {
             $recent = cb_history($pdo, [], 1, 100)['rows'];
             $admins = cb_admin_rows($pdo);
+            $depts  = cb_dept_rows($pdo);
         }
     } catch (Throwable $e) {
         $errors[] = '読み込みに失敗しました: ' . $e->getMessage();
@@ -232,6 +277,60 @@ if (!$hasAdmin): ?>
         </tbody>
       </table>
     <?php endif; ?>
+  </div>
+
+  <div class="panel" id="depts">
+    <h2>部署マスタ</h2>
+    <p class="muted small">掲示する画面・折り返しを受けた記録の「部署」の選択肢です。使用停止にすると選択肢から外れます。
+      名称を変えても、登録済みの掲示の表記はそのままです。「<?= h($config['dept_other']) ?>」を選んだときは部署名を自由に記入できます。</p>
+    <table class="data depts">
+      <thead><tr><th>並び</th><th>コード・名称（変更）</th><th>状態</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($depts as $i => $d): ?>
+        <tr class="<?= (int)$d['active'] ? '' : 'inactive' ?>">
+          <td class="nowrap">
+            <form method="post" action="admin.php#depts" class="inline">
+              <?= cb_csrf_field() ?>
+              <input type="hidden" name="dept_id" value="<?= (int)$d['id'] ?>">
+              <button type="submit" name="act" value="dept_up" class="secondary small" <?= $i === 0 ? 'disabled' : '' ?> aria-label="上へ">↑</button>
+              <button type="submit" name="act" value="dept_down" class="secondary small" <?= $i === count($depts) - 1 ? 'disabled' : '' ?> aria-label="下へ">↓</button>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="admin.php#depts" class="inline">
+              <?= cb_csrf_field() ?>
+              <input type="hidden" name="dept_id" value="<?= (int)$d['id'] ?>">
+              <input type="text" name="code" value="<?= h($d['code']) ?>" maxlength="8" class="code" aria-label="コード" required>
+              <input type="text" name="name" value="<?= h($d['name']) ?>" maxlength="64" aria-label="名称" required>
+              <button type="submit" name="act" value="dept_edit" class="small">変更</button>
+            </form>
+          </td>
+          <td><?= (int)$d['active'] ? '使用中' : '<span class="muted">使用停止</span>' ?></td>
+          <td>
+            <?php if ($d['name'] !== $config['dept_other']): ?>
+            <form method="post" action="admin.php#depts" class="inline">
+              <?= cb_csrf_field() ?>
+              <input type="hidden" name="dept_id" value="<?= (int)$d['id'] ?>">
+              <?php if ((int)$d['active']): ?>
+                <button type="submit" name="act" value="dept_disable" class="secondary small">使用停止</button>
+              <?php else: ?>
+                <button type="submit" name="act" value="dept_enable" class="small">再開</button>
+              <?php endif; ?>
+            </form>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <h3 class="sub">部署を追加</h3>
+    <form method="post" action="admin.php#depts" class="filter-form">
+      <?= cb_csrf_field() ?>
+      <input type="hidden" name="act" value="dept_add">
+      <div class="form-row"><label for="dept_code">コード（半角英数字）</label><input type="text" id="dept_code" name="code" maxlength="8" required></div>
+      <div class="form-row"><label for="dept_name">部署名</label><input type="text" id="dept_name" name="name" maxlength="64" required></div>
+      <button type="submit">追加</button>
+    </form>
   </div>
 
   <div class="panel">

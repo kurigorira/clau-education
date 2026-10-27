@@ -204,6 +204,53 @@ function cb_phone_label(array $p): string
     return $p['phone_last4'] !== '' ? '***-' . $p['phone_last4'] : '';
 }
 
+/* ---------------- 部署の選択欄 ---------------- */
+
+/**
+ * 部署の選択欄（部署マスタの select ＋「その他」のときの部署名入力欄）。
+ * 送信される項目名は $name（選んだ部署名）と {$name}_other（その他の部署名）。
+ */
+function cb_dept_select(array $config, string $name, string $selected, string $other, bool $required = true): void
+{
+    $id = h($name);
+    ?>
+    <div class="dept-pick">
+      <select id="<?= $id ?>" name="<?= $id ?>"<?= $required ? ' required' : '' ?>>
+        <option value="">選んでください</option>
+        <?php foreach ($config['departments'] as $code => $dept): ?>
+          <option value="<?= h($dept) ?>" <?= $selected === $dept ? 'selected' : '' ?>><?= h($dept) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <input type="text" name="<?= $id ?>_other" value="<?= h($other) ?>" maxlength="64"
+             placeholder="「<?= h($config['dept_other']) ?>」のときは部署名を記入" aria-label="<?= h($config['dept_other']) ?>の部署名">
+    </div>
+<?php
+}
+
+/**
+ * 部署の選択欄の入力を読み取る。
+ * @return array{sel: string, other: string, value: string, error: ?string}
+ *   value … 保存する部署名（「その他」のときは記入された部署名）
+ */
+function cb_dept_read(array $config, array $post, string $name, string $label): array
+{
+    $sel   = trim((string)($post[$name] ?? ''));
+    $other = trim(mb_convert_kana((string)($post[$name . '_other'] ?? ''), 's'));
+    $r = ['sel' => $sel, 'other' => $other, 'value' => $sel, 'error' => null];
+    if ($sel === '' || !in_array($sel, $config['departments'], true)) {
+        $r['error'] = "{$label}を選んでください。";
+    } elseif ($sel === $config['dept_other']) {
+        if ($other === '') {
+            $r['error'] = "{$label}で「{$config['dept_other']}」を選んだときは、部署名を記入してください。";
+        } elseif (mb_strlen($other) > 64) {
+            $r['error'] = "{$label}（{$config['dept_other']}）は64文字以内で入力してください。";
+        } else {
+            $r['value'] = $other;
+        }
+    }
+    return $r;
+}
+
 /* ---------------- レイアウト ---------------- */
 
 /**

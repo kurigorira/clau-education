@@ -21,7 +21,7 @@ try {
     $fatal = $e->getMessage();
 }
 
-$recv = ['recv_name' => '', 'recv_dept' => '', 'recv_memo' => ''];
+$recv = ['recv_name' => '', 'recv_dept' => '', 'recv_dept_other' => '', 'recv_memo' => ''];
 $note = '';
 
 if ($post !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -34,12 +34,15 @@ if ($post !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($recv as $k => $_) {
                 $recv[$k] = trim(mb_convert_kana((string)($_POST[$k] ?? ''), 's'));
             }
-            if ($recv['recv_name'] === '' || $recv['recv_dept'] === '') {
-                $errors[] = '受けた方の氏名と部署を入力してください。';
-            } elseif (mb_strlen($recv['recv_name']) > 32 || mb_strlen($recv['recv_dept']) > 30 || mb_strlen($recv['recv_memo']) > 100) {
-                $errors[] = '氏名は32文字・部署は30文字・メモは100文字以内で入力してください。';
+            $dept = cb_dept_read($config, $_POST, 'recv_dept', '受けた方の部署');
+            if ($recv['recv_name'] === '') {
+                $errors[] = '受けた方の氏名を入力してください。';
+            } elseif ($dept['error'] !== null) {
+                $errors[] = $dept['error'];
+            } elseif (mb_strlen($recv['recv_name']) > 32 || mb_strlen($recv['recv_memo']) > 100) {
+                $errors[] = '氏名は32文字・メモは100文字以内で入力してください。';
             } else {
-                $detail = $recv['recv_dept'] . ($recv['recv_memo'] !== '' ? '：' . $recv['recv_memo'] : '');
+                $detail = $dept['value'] . ($recv['recv_memo'] !== '' ? '：' . $recv['recv_memo'] : '');
                 cb_receive($pdo, $id, $recv['recv_name'], $detail);
                 cb_flash_set('折り返しを受けた記録を残しました。担当者に繋がっていない場合は、掲示はそのまま残ります。');
                 header('Location: view.php?id=' . $id);
@@ -154,7 +157,7 @@ $state = cb_state($post);
     <div class="form-row"><label for="recv_name">受けた方の氏名</label>
       <input type="text" id="recv_name" name="recv_name" value="<?= h($recv['recv_name']) ?>" maxlength="32" required></div>
     <div class="form-row"><label for="recv_dept">部署</label>
-      <input type="text" id="recv_dept" name="recv_dept" value="<?= h($recv['recv_dept']) ?>" maxlength="30" required></div>
+      <?php cb_dept_select($config, 'recv_dept', $recv['recv_dept'], $recv['recv_dept_other']); ?></div>
     <div class="form-row"><label for="recv_memo">メモ（任意）</label>
       <input type="text" id="recv_memo" name="recv_memo" value="<?= h($recv['recv_memo']) ?>" maxlength="100" placeholder="例：担当者へ転送済み／不在のため伝言"></div>
     <button type="submit">折り返しを受けた記録を残す</button>

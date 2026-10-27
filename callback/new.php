@@ -15,7 +15,7 @@ $defaultHours = (int)$config['expire_default_hours'];
 if (!in_array($defaultHours, $hoursChoices, true)) { $defaultHours = $hoursChoices[0]; }
 
 $old = [
-    'caller_name' => '', 'caller_dept' => '', 'caller_ext' => '', 'alt_contact' => '',
+    'caller_name' => '', 'caller_dept' => '', 'caller_dept_other' => '', 'caller_ext' => '', 'alt_contact' => '',
     'party_type' => '', 'party_name' => '', 'phone_last4' => '', 'purpose' => '',
     'called_date' => date('Y-m-d'), 'called_time' => date('H:i'), 'hours' => $defaultHours,
 ];
@@ -37,7 +37,9 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['hours'] = (int)$old['hours'];
     $pass = (string)($_POST['edit_pass'] ?? '');
 
-    $limits = ['caller_name' => ['あなたの氏名', 64], 'caller_dept' => ['所属部署', 64], 'caller_ext' => ['内線・PHS番号', 32]];
+    $dept = cb_dept_read($config, $_POST, 'caller_dept', '所属部署');
+    if ($dept['error'] !== null) { $errors[] = $dept['error']; }
+    $limits = ['caller_name' => ['あなたの氏名', 64], 'caller_ext' => ['内線・PHS番号', 32]];
     foreach ($limits as $k => [$label, $max]) {
         if ($old[$k] === '') {
             $errors[] = "{$label}を入力してください。";
@@ -84,6 +86,7 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $data = $old;
             $data['called_at'] = date('Y-m-d H:i:s', $calledTs);
+            $data['caller_dept'] = $dept['value'];
             $id = cb_create($pdo, $data, $old['hours'], password_hash($pass, PASSWORD_DEFAULT));
             cb_flash_set('掲示しました。連絡がついたら、この画面で簡易パスワードを入れて「連絡がついた」にしてください。');
             header('Location: view.php?id=' . $id);
@@ -119,7 +122,7 @@ if ($fatal !== null) {
       </div>
       <div class="form-row">
         <label for="caller_dept">所属部署<span class="required">必須</span></label>
-        <input type="text" id="caller_dept" name="caller_dept" value="<?= h($old['caller_dept']) ?>" maxlength="64" required placeholder="例：3階病棟">
+        <?php cb_dept_select($config, 'caller_dept', $old['caller_dept'], $old['caller_dept_other']); ?>
       </div>
       <div class="form-row">
         <label for="caller_ext">内線・PHS番号<span class="required">必須</span></label>
