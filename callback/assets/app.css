@@ -178,17 +178,23 @@ dl.detail dd { margin: 0; font-size: 14px; }
 .manual h3 { margin: 24px 0 8px; font-size: 17px; color: #9a3412; border-left: 5px solid #c2410c; padding-left: 8px; }
 .manual ol, .manual ul { padding-left: 24px; }
 .manual li { margin-bottom: 6px; }
-.manual ol.flow { background: #fff4e8; border: 1px solid #f3d2b0; border-radius: 8px; padding: 10px 14px 10px 36px; }
 .manual .note { font-size: 13px; color: #3d4450; background: #fffaf3; border-left: 3px solid #f3d2b0; padding: 4px 10px; }
-.manual dl.faq { grid-template-columns: 230px 1fr; }
+.manual section { margin-bottom: 8px; }
+.manual .where { margin: 0 0 6px; font-size: 13px; color: #3d4450; }
+.manual .where::before { content: "開く画面："; font-weight: 700; }
+.manual figure.shot { margin: 0 0 8px; }
+.manual figure.shot img { display: block; max-width: 100%; height: auto; border: 1px solid #e6cfb6; border-radius: 8px; }
+.manual ul.marks { list-style: none; padding: 0; margin: 0 0 10px; }
+.manual ul.marks li { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.manual ul.marks .n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #d40000; color: #fff;
+                      font-size: 13px; line-height: 22px; text-align: center; }
 .manual .toc { columns: 2; font-size: 14px; background: #fffaf3; border: 1px solid #f3d2b0; border-radius: 8px; padding: 10px 14px 10px 32px; }
 .manual .toc a { color: #9a3412; }
 .manual .goto { font-size: 13px; margin: 6px 0 0; }
 .manual .print-head { display: none; }
 @media (max-width: 700px) {
   .manual .toc { columns: 1; }
-  .manual dl.faq { grid-template-columns: 1fr; }
-}
+  }
 
 @media print {
   @page { size: A4; margin: 14mm 12mm; }
@@ -200,6 +206,8 @@ dl.detail dd { margin: 0; font-size: 14px; }
   .panel { border: 0; padding: 0; }
   a { color: #000; text-decoration: none; }
   .manual h3 { break-after: avoid; page-break-after: avoid; color: #000; border-left-color: #000; }
-  .manual ol, .manual ul, .manual dl, .manual .note { break-inside: avoid; page-break-inside: avoid; }
+  .manual ul, .manual .note, .manual figure.shot, .manual .pair { break-inside: avoid; page-break-inside: avoid; }
+  .manual .where { break-after: avoid; page-break-after: avoid; }
+  .manual ul.marks .n { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .manual .print-head { display: block; font-size: 9pt; color: #333; text-align: right; }
 }
