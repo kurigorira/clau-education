@@ -1,0 +1,214 @@
+/* 外線折り返し連絡板（既存の院内アプリと同じ視覚言語・このアプリ単体で完結） */
+* { box-sizing: border-box; }
+/* 背景は薄いオレンジ・基調色はオレンジ（研修スケジュールの桃色と区別）。
+   文字は丸ゴシック（Office 付属の HG丸ｺﾞｼｯｸM-PRO）。無い端末は Windows 標準のゴシック体 */
+body { margin: 0;
+       font-family: "HG丸ｺﾞｼｯｸM-PRO", "HGMaruGothicMPRO", "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN",
+                    "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "YuGothic", "Meiryo",
+                    "Hiragino Kaku Gothic ProN", "MS PGothic", sans-serif;
+       font-weight: 500; color: #111111; background: #fff6ec; line-height: 1.6; }
+input, select, textarea, button { font-family: inherit; }
+
+/* ヘッダ */
+.topbar { background: #c2410c; color: #fff; padding: 12px 20px;
+          display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.topbar h1 { margin: 0; font-size: 20px; }
+.topbar h1 a { color: #fff; text-decoration: none; }
+.topbar .nav a { color: #fff4e8; font-size: 14px; text-decoration: none; margin-right: 14px; }
+.topbar .nav a:hover { color: #fff; }
+.topbar .nav a.active { color: #fff; font-weight: 700; border-bottom: 2px solid #fff; }
+
+.container { max-width: 1080px; margin: 20px auto 40px; padding: 0 16px; }
+
+/* サマリ */
+.summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.card { background: #fff; border: 1px solid #f1dfcc; border-radius: 10px;
+        padding: 12px 20px; min-width: 130px; }
+.card .label { font-size: 12px; color: #3d4450; }
+.card .value { font-size: 26px; font-weight: 700; }
+.card small { font-size: 13px; font-weight: 400; margin-left: 2px; color: #3d4450; }
+.card.open .value { color: #a02525; }
+.card.done .value { color: #1b6b35; }
+.card.cta { background: #c2410c; border-color: #c2410c; text-decoration: none; color: #fff; }
+.card.cta .label { color: #fff4e8; }
+.card.cta:hover { background: #9a3412; }
+.card .value-sm { font-size: 17px; font-weight: 700; padding-top: 6px; }
+
+.panel { background: #fff; border: 1px solid #f1dfcc; border-radius: 10px;
+         padding: 20px 24px; margin-bottom: 16px; }
+.panel h2 { margin: 0 0 14px; font-size: 17px; color: #c2410c; }
+.panel h3.sub { margin: 20px 0 10px; font-size: 15px; color: #c2410c; }
+.panel.narrow { max-width: 520px; }
+
+/* 受電した人への案内 */
+.howto { background: #fff; border: 2px solid #c2410c; border-radius: 10px;
+         padding: 10px 16px; margin-bottom: 16px; font-size: 14px; }
+
+/* 掲示カード */
+.posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.post { background: #fff; border: 1px solid #f3d2b0; border-left: 6px solid #a02525;
+        border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+.post-detail { margin-bottom: 16px; }
+.post-party { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.party-name { font-size: 22px; font-weight: 700; }
+.phone { font-size: 20px; font-weight: 700; color: #9a3412; letter-spacing: 1px; }
+.post-purpose { font-size: 15px; word-break: break-word; }
+.post-to { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+           background: #ffeddb; border-radius: 8px; padding: 6px 10px; }
+.post-to .arrow { font-size: 12px; color: #3d4450; }
+.post-to .arrow::after { content: " →"; }
+.post-to .ext { font-size: 22px; font-weight: 700; color: #9a3412; }
+.post-to .who { font-size: 22px; font-weight: 700; }
+/* 相手先名・内線・担当者（部署）は同じ大きさ（22px・太字）にそろえる */
+.post-to .who-name { font-weight: 700; }
+.post-edit { display: flex; justify-content: flex-end; }
+.btn.small-btn { padding: 5px 14px; font-size: 13px; }
+.post-alt { font-size: 13px; color: #1e2a3d; }
+.post-received { font-size: 13px; background: #fff3cd; color: #7a5b00; border: 1px solid #f0e0a0;
+                 border-radius: 6px; padding: 2px 8px; }
+.post-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #3d4450;
+             border-top: 1px solid #f6eadc; padding-top: 6px; margin-top: auto; }
+.post-foot a { margin-left: auto; color: #c2410c; font-weight: 700; }
+
+/* テーブル */
+table.data { width: 100%; border-collapse: collapse; background: #fff;
+             border: 1px solid #f1dfcc; border-radius: 10px; overflow: hidden; }
+table.data th, table.data td { padding: 8px 12px; border-bottom: 1px solid #f6eadc;
+             text-align: left; font-size: 14px; vertical-align: top; }
+table.data thead th { background: #ffeddb; font-size: 13px; white-space: nowrap; }
+table.data td.nowrap { white-space: nowrap; }
+
+/* バッジ */
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { display: inline-block; border-radius: 6px; padding: 1px 10px;
+         font-size: 13px; white-space: nowrap; }
+.badge-open  { background: #fde7e7; color: #a02525; border: 1px solid #f3bcbc; }
+.badge-done  { background: #e8f2e9; color: #1b6b35; border: 1px solid #cbe5d0; }
+.badge-muted { background: #eceff3; color: #3d4450; border: 1px solid #d5dbe3; }
+.badge-party { background: #c2410c; color: #fff; border: 1px solid #c2410c; }
+
+/* フォーム */
+fieldset { border: 1px solid #f1dfcc; border-radius: 8px; padding: 12px 18px 4px; margin: 0 0 16px; }
+legend { font-weight: 700; color: #c2410c; font-size: 14px; padding: 0 6px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 16px; }
+.form-row { margin-bottom: 14px; }
+.form-row label { display: block; font-size: 13px; color: #1e2a3d; margin-bottom: 4px; font-weight: 700; }
+.form-row .required { color: #a02525; font-size: 12px; margin-left: 4px; }
+.form-row .hint { color: #3d4450; font-size: 12px; font-weight: 400; margin-left: 6px; }
+.form-row input[type="text"], .form-row input[type="password"], .form-row input[type="date"],
+.form-row input[type="time"], .form-row select {
+    width: 100%; max-width: 560px; padding: 8px 10px; font-size: 14px;
+    border: 1px solid #dcc3a8; border-radius: 6px; background: #fff; font-family: inherit; }
+/* 部署の選択欄（select ＋「その他」の部署名） */
+.dept-pick { display: flex; gap: 6px; flex-wrap: wrap; max-width: 560px; }
+.form-row .dept-pick select { flex: 1 1 150px; width: auto; }
+.form-row .dept-pick input[type="text"] { flex: 1 1 150px; width: auto; }
+.filter-form .dept-pick input[type="text"] { min-width: 0; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+label.check { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; color: #111111; font-size: 14px; }
+.filter-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.filter-form .form-row { margin-bottom: 0; }
+.filter-form input[type="text"] { width: auto; min-width: 200px; }
+.filter-form select { min-width: 120px; width: auto; }
+form.inline { display: inline-flex; gap: 6px; align-items: center; margin: 0; flex-wrap: wrap; }
+form.inline input { padding: 5px 8px; border: 1px solid #dcc3a8; border-radius: 6px; font-size: 13px; width: 130px; }
+form.inline input.code { width: 70px; }
+table.data tr.inactive td { background: #f6f7f9; color: #5a6170; }
+button:disabled { opacity: .35; cursor: default; }
+form.logout { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-bottom: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions .extend { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.actions select { padding: 8px; border: 1px solid #dcc3a8; border-radius: 6px; font-size: 14px; }
+
+button, .btn { display: inline-block; background: #c2410c; color: #fff; border: 0;
+       border-radius: 6px; padding: 9px 22px; font-size: 14px; cursor: pointer;
+       font-family: inherit; text-decoration: none; line-height: 1.6; vertical-align: middle; }
+button:hover, .btn:hover { background: #9a3412; }
+button.secondary, .btn.secondary { background: #3d4450; }
+button.danger { background: #a02525; }
+button.danger:hover { background: #861d1d; }
+button.small { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+
+/* メッセージ */
+.flash { border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; font-size: 14px; }
+.flash.ok { background: #e8f2e9; color: #1b6b35; border: 1px solid #cbe5d0; }
+.flash.error { background: #fde7e7; color: #a02525; border: 1px solid #f3bcbc; }
+.error { background: #fde7e7; color: #a02525; border: 1px solid #f3bcbc;
+         border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; }
+.error ul { margin: 6px 0 0; padding-left: 20px; }
+.warn { background: #fff3cd; color: #7a5b00; border: 1px solid #f0e0a0;
+        border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; font-size: 13px; }
+.empty { background: #fff; border: 1px solid #f1dfcc; border-radius: 10px;
+         padding: 30px; text-align: center; color: #3d4450; }
+
+/* 詳細 */
+dl.detail { display: grid; grid-template-columns: 120px 1fr; gap: 6px 14px; margin: 0; }
+dl.detail dt { font-size: 13px; color: #3d4450; font-weight: 700; padding-top: 2px; }
+dl.detail dd { margin: 0; font-size: 14px; }
+
+/* ページング */
+.pager { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.pager a, .pager span { border: 1px solid #dcc3a8; border-radius: 6px; background: #fff;
+        padding: 4px 12px; font-size: 13px; text-decoration: none; color: #c2410c; }
+.pager span.current { background: #c2410c; color: #fff; border-color: #c2410c; }
+
+.muted { color: #3d4450; }
+.small { font-size: 12px; }
+.lead { color: #1e2a3d; font-size: 14px; margin: 0 0 14px; }
+.mt { margin-top: 10px; }
+
+/* スマホ幅：表はカード表示 */
+@media (max-width: 700px) {
+  .container { padding: 0 12px; }
+  .posts { grid-template-columns: 1fr; }
+  .filter-form .form-row, .filter-form input, .filter-form select { width: 100%; }
+  table.data.history thead { display: none; }
+  table.data.history, table.data.history tbody, table.data.history tr, table.data.history td { display: block; width: 100%; }
+  table.data.history tr { border-bottom: 1px solid #f1dfcc; padding: 8px 0; }
+  table.data.history td { border: 0; padding: 2px 12px; }
+  table.data.history td[data-label]::before { content: attr(data-label) "："; color: #3d4450; font-size: 12px; }
+  .actions .extend { margin-left: 0; }
+  dl.detail { grid-template-columns: 90px 1fr; }
+}
+
+/* 操作マニュアルへのリンク（各画面の右上） */
+.help-link { text-align: right; margin: -8px 0 10px; font-size: 13px; }
+.help-link a { color: #9a3412; font-weight: 700; }
+
+/* 操作マニュアル */
+.manual h3 { margin: 24px 0 8px; font-size: 17px; color: #9a3412; border-left: 5px solid #c2410c; padding-left: 8px; }
+.manual ol, .manual ul { padding-left: 24px; }
+.manual li { margin-bottom: 6px; }
+.manual .note { font-size: 13px; color: #3d4450; background: #fffaf3; border-left: 3px solid #f3d2b0; padding: 4px 10px; }
+.manual section { margin-bottom: 8px; }
+.manual .where { margin: 0 0 6px; font-size: 13px; color: #3d4450; }
+.manual .where::before { content: "開く画面："; font-weight: 700; }
+.manual figure.shot { margin: 0 0 8px; }
+.manual figure.shot img { display: block; max-width: 100%; height: auto; border: 1px solid #e6cfb6; border-radius: 8px; }
+.manual ul.marks { list-style: none; padding: 0; margin: 0 0 10px; }
+.manual ul.marks li { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.manual ul.marks .n { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #d40000; color: #fff;
+                      font-size: 13px; line-height: 22px; text-align: center; }
+.manual .toc { columns: 2; font-size: 14px; background: #fffaf3; border: 1px solid #f3d2b0; border-radius: 8px; padding: 10px 14px 10px 32px; }
+.manual .toc a { color: #9a3412; }
+.manual .goto { font-size: 13px; margin: 6px 0 0; }
+.manual .print-head { display: none; }
+@media (max-width: 700px) {
+  .manual .toc { columns: 1; }
+  }
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  body { background: #fff; font-size: 11pt; }
+  .topbar { background: #fff; color: #000; padding: 0 0 6px; border-bottom: 2px solid #000; }
+  .topbar h1 a { color: #000; }
+  .topbar .nav, .filter-form, button, .btn, .actions, .no-print { display: none !important; }
+  .container { max-width: none; margin: 10px 0 0; padding: 0; }
+  .panel { border: 0; padding: 0; }
+  a { color: #000; text-decoration: none; }
+  .manual h3 { break-after: avoid; page-break-after: avoid; color: #000; border-left-color: #000; }
+  .manual ul, .manual .note, .manual figure.shot, .manual .pair { break-inside: avoid; page-break-inside: avoid; }
+  .manual .where { break-after: avoid; page-break-after: avoid; }
+  .manual ul.marks .n { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .manual .print-head { display: block; font-size: 9pt; color: #333; text-align: right; }
+}
