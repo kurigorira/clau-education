@@ -94,7 +94,7 @@ if ($post !== null) {
     }
 }
 
-cb_layout_header($config, '掲示の詳細', '');
+cb_layout_header($config, '掲示の詳細', '', 0, 'close');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);

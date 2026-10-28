@@ -170,7 +170,36 @@ dl.detail dd { margin: 0; font-size: 14px; }
   dl.detail { grid-template-columns: 90px 1fr; }
 }
 
+/* 操作マニュアルへのリンク（各画面の右上） */
+.help-link { text-align: right; margin: -8px 0 10px; font-size: 13px; }
+.help-link a { color: #9a3412; font-weight: 700; }
+
+/* 操作マニュアル */
+.manual h3 { margin: 24px 0 8px; font-size: 17px; color: #9a3412; border-left: 5px solid #c2410c; padding-left: 8px; }
+.manual ol, .manual ul { padding-left: 24px; }
+.manual li { margin-bottom: 6px; }
+.manual ol.flow { background: #fff4e8; border: 1px solid #f3d2b0; border-radius: 8px; padding: 10px 14px 10px 36px; }
+.manual .note { font-size: 13px; color: #3d4450; background: #fffaf3; border-left: 3px solid #f3d2b0; padding: 4px 10px; }
+.manual dl.faq { grid-template-columns: 230px 1fr; }
+.manual .toc { columns: 2; font-size: 14px; background: #fffaf3; border: 1px solid #f3d2b0; border-radius: 8px; padding: 10px 14px 10px 32px; }
+.manual .toc a { color: #9a3412; }
+.manual .goto { font-size: 13px; margin: 6px 0 0; }
+.manual .print-head { display: none; }
+@media (max-width: 700px) {
+  .manual .toc { columns: 1; }
+  .manual dl.faq { grid-template-columns: 1fr; }
+}
+
 @media print {
-  body { background: #fff; }
-  .topbar .nav, .filter-form, button, .btn, .actions { display: none; }
+  @page { size: A4; margin: 14mm 12mm; }
+  body { background: #fff; font-size: 11pt; }
+  .topbar { background: #fff; color: #000; padding: 0 0 6px; border-bottom: 2px solid #000; }
+  .topbar h1 a { color: #000; }
+  .topbar .nav, .filter-form, button, .btn, .actions, .no-print { display: none !important; }
+  .container { max-width: none; margin: 10px 0 0; padding: 0; }
+  .panel { border: 0; padding: 0; }
+  a { color: #000; text-decoration: none; }
+  .manual h3 { break-after: avoid; page-break-after: avoid; color: #000; border-left-color: #000; }
+  .manual ol, .manual ul, .manual dl, .manual .note { break-inside: avoid; page-break-inside: avoid; }
+  .manual .print-head { display: block; font-size: 9pt; color: #333; text-align: right; }
 }

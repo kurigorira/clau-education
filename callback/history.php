@@ -31,7 +31,7 @@ try {
     $fatal = $e->getMessage();
 }
 
-cb_layout_header($config, '履歴', 'history');
+cb_layout_header($config, '履歴', 'history', 0, 'history');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);

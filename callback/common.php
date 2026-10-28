@@ -254,16 +254,18 @@ function cb_dept_read(array $config, array $post, string $name, string $label): 
 /* ---------------- レイアウト ---------------- */
 
 /**
- * ページ共通ヘッダ（$active: 'list' | 'new' | 'history' | 'admin'）
+ * ページ共通ヘッダ（$active: 'list' | 'new' | 'history' | 'manual' | 'admin'）
  * $refresh > 0 なら、その秒数ごとにページを自動で再読み込みする（一覧画面用）
+ * $help が空でなければ、操作マニュアルの該当項目（manual.php#$help）へのリンクを出す
  */
-function cb_layout_header(array $config, string $subtitle, string $active = '', int $refresh = 0): void
+function cb_layout_header(array $config, string $subtitle, string $active = '', int $refresh = 0, string $help = ''): void
 {
     $title = $config['title'];
     $nav = [
         'list'    => ['index.php', '折り返し待ち一覧'],
         'new'     => ['new.php', '掲示する'],
         'history' => ['history.php', '履歴'],
+        'manual'  => ['manual.php', '操作マニュアル'],
         'admin'   => ['admin.php', cb_is_admin() ? '管理（ログイン中）' : '管理'],
     ];
     ?>
@@ -291,6 +293,9 @@ function cb_layout_header(array $config, string $subtitle, string $active = '', 
     if ($flash !== null) {
         $kind = $flash['kind'] === 'error' ? 'error' : 'ok';
         echo '<div class="flash ' . $kind . '">' . h($flash['msg']) . '</div>';
+    }
+    if ($help !== '') {
+        echo '<p class="help-link no-print"><a href="manual.php#' . h($help) . '">？ この画面の使い方（操作マニュアル）</a></p>';
     }
 }
 

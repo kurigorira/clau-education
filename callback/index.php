@@ -25,7 +25,7 @@ try {
     $fatal = $e->getMessage();
 }
 
-cb_layout_header($config, '折り返し待ち一覧', 'list', (int)$config['refresh_seconds']);
+cb_layout_header($config, '折り返し待ち一覧', 'list', (int)$config['refresh_seconds'], 'receive');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);

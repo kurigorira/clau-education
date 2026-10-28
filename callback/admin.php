@@ -207,7 +207,7 @@ if ($fatal === null) {
     }
 }
 
-cb_layout_header($config, '管理', 'admin');
+cb_layout_header($config, '管理', 'admin', 0, 'admin');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);

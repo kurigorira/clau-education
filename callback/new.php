@@ -35,7 +35,7 @@ if ($fatal === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-cb_layout_header($config, '掲示する', 'new');
+cb_layout_header($config, '掲示する', 'new', 0, 'post');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);

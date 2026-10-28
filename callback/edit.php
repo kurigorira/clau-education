@@ -37,7 +37,7 @@ if ($post !== null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-cb_layout_header($config, '掲示の編集', '');
+cb_layout_header($config, '掲示の編集', '', 0, 'edit');
 if ($fatal !== null) {
     cb_db_error($fatal);
     cb_layout_footer($config);
