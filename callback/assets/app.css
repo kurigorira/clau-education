@@ -57,9 +57,10 @@ input, select, textarea, button { font-family: inherit; }
            background: #ffeddb; border-radius: 8px; padding: 6px 10px; }
 .post-to .arrow { font-size: 12px; color: #3d4450; }
 .post-to .arrow::after { content: " →"; }
-.post-to .ext { font-size: 26px; font-weight: 700; color: #9a3412; }
-.post-to .who { font-size: 14px; }
-.post-to .who-name { font-size: 18px; font-weight: 700; }
+.post-to .ext { font-size: 22px; font-weight: 700; color: #9a3412; }
+.post-to .who { font-size: 22px; font-weight: 700; }
+/* 相手先名・内線・担当者（部署）は同じ大きさ（22px・太字）にそろえる */
+.post-to .who-name { font-weight: 700; }
 .post-edit { display: flex; justify-content: flex-end; }
 .btn.small-btn { padding: 5px 14px; font-size: 13px; }
 .post-alt { font-size: 13px; color: #1e2a3d; }
