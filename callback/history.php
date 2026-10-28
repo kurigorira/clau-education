@@ -52,7 +52,7 @@ $pages = max(1, (int)ceil($result['total'] / $perPage));
       <?php endforeach; ?>
     </select>
   </div>
-  <div class="form-row"><label for="q">キーワード</label><input type="text" id="q" name="q" value="<?= h($filters['q']) ?>" placeholder="名前・下4桁・担当者"></div>
+  <div class="form-row"><label for="q">キーワード</label><input type="text" id="q" name="q" value="<?= h($filters['q']) ?>" placeholder="名前・ID番号・担当者"></div>
   <button type="submit">探す</button>
 </form>
 
@@ -67,7 +67,7 @@ $pages = max(1, (int)ceil($result['total'] / $perPage));
       <tr>
         <td class="nowrap"><a href="view.php?id=<?= (int)$p['id'] ?>"><?= h(cb_datetime_label($p['called_at'])) ?></a></td>
         <td><span class="badge <?= h(cb_state_class($state)) ?>"><?= h(cb_state_map()[$state]) ?></span></td>
-        <td data-label="相手先"><?= h(cb_party_label($p)) ?> <?= h(cb_phone_label($p)) ?></td>
+        <td data-label="相手先"><?= h(cb_party_label($p)) ?> <?= h(cb_id_label($p)) ?></td>
         <td data-label="用件"><?= h($p['purpose']) ?></td>
         <td data-label="担当者"><?= h($p['caller_name']) ?>（<?= h($p['caller_dept']) ?> <?= h(cb_ext_label($p)) ?>）</td>
         <td data-label="終了" class="small"><?= $p['closed_at'] ? h(cb_datetime_label($p['closed_at']) . ' ' . $p['closed_note']) : '' ?></td>

@@ -261,7 +261,7 @@ if (!$hasAdmin): ?>
             <td><?= (int)$p['id'] ?></td>
             <td class="nowrap"><a href="view.php?id=<?= (int)$p['id'] ?>"><?= h(cb_datetime_label($p['called_at'])) ?></a></td>
             <td><span class="badge <?= h(cb_state_class($state)) ?>"><?= h(cb_state_map()[$state]) ?></span></td>
-            <td><?= h(cb_party_label($p)) ?> <?= h(cb_phone_label($p)) ?></td>
+            <td><?= h(cb_party_label($p)) ?> <?= h(cb_id_label($p)) ?></td>
             <td><?= h($p['purpose']) ?></td>
             <td><?= h($p['caller_name']) ?>（<?= h(cb_ext_label($p)) ?>）</td>
             <td>

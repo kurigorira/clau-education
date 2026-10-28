@@ -198,10 +198,10 @@ function cb_ext_label(array $p): string
     return preg_match('/^\d/', $p['caller_ext']) ? '内線 ' . $p['caller_ext'] : $p['caller_ext'];
 }
 
-/** 電話番号下4桁の表示（例 ***-1234） */
-function cb_phone_label(array $p): string
+/** ID番号の表示（例 ID 0012345） */
+function cb_id_label(array $p): string
 {
-    return $p['phone_last4'] !== '' ? '***-' . $p['phone_last4'] : '';
+    return $p['patient_id'] !== '' ? 'ID ' . $p['patient_id'] : '';
 }
 
 /* ---------------- 部署の選択欄 ---------------- */

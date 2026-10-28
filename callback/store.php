@@ -41,7 +41,7 @@ function cb_ensure_tables(PDO $pdo): void
            alt_contact    VARCHAR(100) NOT NULL DEFAULT \'\',
            party_type     VARCHAR(32)  NOT NULL,
            party_name     VARCHAR(32)  NOT NULL DEFAULT \'\',
-           phone_last4    VARCHAR(4)   NOT NULL DEFAULT \'\',
+           patient_id     VARCHAR(16)  NOT NULL DEFAULT \'\',
            purpose        VARCHAR(200) NOT NULL,
            called_at      DATETIME     NOT NULL,
            expires_at     DATETIME     NOT NULL,
@@ -54,9 +54,14 @@ function cb_ensure_tables(PDO $pdo): void
            PRIMARY KEY (id),
            KEY idx_open (status, expires_at),
            KEY idx_created (created_at),
-           KEY idx_last4 (phone_last4)
+           KEY idx_patient (patient_id)
          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
     );
+    // 以前の版の「電話番号の下4桁」は「ID番号」に置き換えた（下4桁の値は引き継がない）
+    if ($pdo->query("SHOW COLUMNS FROM cb_posts LIKE 'phone_last4'")->fetch()) {
+        $pdo->exec("ALTER TABLE cb_posts DROP COLUMN phone_last4,
+                    ADD COLUMN patient_id VARCHAR(16) NOT NULL DEFAULT '' AFTER party_name, ADD KEY idx_patient (patient_id)");
+    }
     // 以前の版の簡易パスワード列は使わなくなったので削除する
     if ($pdo->query("SHOW COLUMNS FROM cb_posts LIKE 'edit_pass_hash'")->fetch()) {
         $pdo->exec('ALTER TABLE cb_posts DROP COLUMN edit_pass_hash');
@@ -260,6 +265,7 @@ function cb_action_label(string $action): string
 {
     return [
         'create'   => '掲示',
+        'edit'     => '編集',
         'receive'  => '折り返し受電',
         'done'     => '連絡がついた',
         'withdraw' => '取り下げ',
@@ -301,7 +307,7 @@ function cb_fail_count(PDO $pdo, string $action, string $ip, int $minutes): int
 
 /* ---------------- 掲示 ---------------- */
 
-/** キーワード検索の条件（相手先名・下4桁・担当者・部署・用件） */
+/** キーワード検索の条件（相手先名・ID番号・担当者・部署・用件） */
 function cb_keyword_where(string $q, array &$params): string
 {
     $q = trim(mb_convert_kana($q, 'as'));
@@ -309,7 +315,7 @@ function cb_keyword_where(string $q, array &$params): string
     $sql = '';
     foreach (preg_split('/\s+/', $q) as $word) {
         $like = '%' . addcslashes($word, '%_\\') . '%';
-        $sql .= ' AND (party_name LIKE ? OR phone_last4 LIKE ? OR caller_name LIKE ? OR caller_dept LIKE ?
+        $sql .= ' AND (party_name LIKE ? OR patient_id LIKE ? OR caller_name LIKE ? OR caller_dept LIKE ?
                        OR purpose LIKE ? OR party_type LIKE ? OR caller_ext LIKE ?)';
         array_push($params, $like, $like, $like, $like, $like, $like, $like);
     }
@@ -384,15 +390,52 @@ function cb_create(PDO $pdo, array $d, int $hours): int
 {
     $pdo->prepare(
         'INSERT INTO cb_posts (caller_name, caller_dept, caller_ext, alt_contact, party_type, party_name,
-                               phone_last4, purpose, called_at, expires_at)
+                               patient_id, purpose, called_at, expires_at)
          VALUES (?,?,?,?,?,?,?,?,?, NOW() + INTERVAL ? HOUR)'
     )->execute([
         $d['caller_name'], $d['caller_dept'], $d['caller_ext'], $d['alt_contact'], $d['party_type'],
-        $d['party_name'], $d['phone_last4'], $d['purpose'], $d['called_at'], $hours,
+        $d['party_name'], $d['patient_id'], $d['purpose'], $d['called_at'], $hours,
     ]);
     $id = (int)$pdo->lastInsertId();
     cb_log($pdo, $id, 'create', $d['caller_name'], "掲示期間 {$hours}時間");
     return $id;
+}
+
+/** 掲示の項目名 => 表示名（編集の変更点の記録に使う） */
+function cb_field_labels(): array
+{
+    return [
+        'party_type' => '相手先の区分', 'party_name' => 'お名前', 'patient_id' => 'ID番号', 'purpose' => '用件',
+        'called_at' => '電話した日時', 'caller_name' => '氏名', 'caller_dept' => '所属部署',
+        'caller_ext' => '内線・PHS', 'alt_contact' => '不在時の連絡先',
+    ];
+}
+
+/**
+ * 掲示の内容を変更し、変更点（旧→新）を記録に残す。
+ * @return string 変更点の説明（変更がなければ空文字で、何もしない）
+ */
+function cb_update(PDO $pdo, array $post, array $d, string $who): string
+{
+    $diff = [];
+    foreach (cb_field_labels() as $k => $label) {
+        $before = $k === 'called_at' ? date('Y-m-d H:i', strtotime($post[$k])) : (string)$post[$k];
+        $after  = $k === 'called_at' ? date('Y-m-d H:i', strtotime($d[$k])) : (string)$d[$k];
+        if ($before !== $after) {
+            $diff[] = "{$label}：" . ($before === '' ? '（なし）' : $before) . ' → ' . ($after === '' ? '（なし）' : $after);
+        }
+    }
+    if (!$diff) { return ''; }
+    $pdo->prepare(
+        'UPDATE cb_posts SET party_type = ?, party_name = ?, patient_id = ?, purpose = ?, called_at = ?,
+                caller_name = ?, caller_dept = ?, caller_ext = ?, alt_contact = ? WHERE id = ?'
+    )->execute([
+        $d['party_type'], $d['party_name'], $d['patient_id'], $d['purpose'], $d['called_at'],
+        $d['caller_name'], $d['caller_dept'], $d['caller_ext'], $d['alt_contact'], (int)$post['id'],
+    ]);
+    $text = implode('／', $diff);
+    cb_log($pdo, (int)$post['id'], 'edit', $who, $text);
+    return $text;
 }
 
 /** 「折り返しを受けた」記録を残す（掲示は閉じない。誰でも記録できる） */

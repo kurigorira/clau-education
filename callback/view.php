@@ -114,15 +114,16 @@ $state = cb_state($post);
   <div class="post-party">
     <span class="badge badge-party"><?= h($post['party_type']) ?></span>
     <span class="party-name"><?= h($post['party_name'] !== '' ? $post['party_name'] : '（お名前なし）') ?></span>
-    <?php if ($post['phone_last4'] !== ''): ?><span class="phone">電話 <?= h(cb_phone_label($post)) ?></span><?php endif; ?>
+    <?php if ($post['patient_id'] !== ''): ?><span class="phone"><?= h(cb_id_label($post)) ?></span><?php endif; ?>
   </div>
-  <div class="post-purpose"><?= h($post['purpose']) ?></div>
+  <?php if ($post['purpose'] !== ''): ?><div class="post-purpose"><?= h($post['purpose']) ?></div><?php endif; ?>
   <div class="post-to">
     <span class="arrow">転送先</span>
     <span class="ext"><?= h(cb_ext_label($post)) ?></span>
-    <span class="who"><?= h($post['caller_name']) ?>（<?= h($post['caller_dept']) ?>）</span>
+    <span class="who"><strong class="who-name"><?= h($post['caller_name']) ?></strong>（<?= h($post['caller_dept']) ?>）</span>
   </div>
   <?php if ($post['alt_contact'] !== ''): ?><div class="post-alt">不在のとき：<?= h($post['alt_contact']) ?></div><?php endif; ?>
+  <div class="post-edit"><a class="btn secondary small-btn" href="edit.php?id=<?= (int)$post['id'] ?>">内容を編集</a></div>
   <dl class="detail mt">
     <dt>電話した日時</dt><dd><?= h(cb_when_label($post['called_at'])) ?>（<?= h(cb_ago_label($post['called_at'])) ?>）</dd>
     <dt>掲示期限</dt><dd><?= h(cb_datetime_label($post['expires_at'])) ?><?= $state === 'open' ? '（' . h(cb_left_label($post['expires_at'])) . '）' : '' ?></dd>
